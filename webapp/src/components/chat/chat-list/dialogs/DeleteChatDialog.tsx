@@ -41,8 +41,8 @@ export const DeleteChatDialog: React.FC<IEditChatNameProps> = ({ chatName }) => 
                     <DialogContent
                     // TODO:  [sk Issue #1642] Check with Matthew on proper copy here
                     >
-                        This will permanently delete the chat for you but not for Chat Copilot. You need to delete
-                        anything that you have shared (files, tasks, etc.) separately.
+                        This will permanently delete the chat for you but not for Bucky. You need to delete anything
+                        that you have shared (files, tasks, etc.) separately.
                     </DialogContent>
                     <DialogActions className={classes.actions}>
                         <DialogTrigger action="close" disableButtonEnhancement>

@@ -93,7 +93,7 @@ export const PluginGallery: React.FC = () => {
                         }
                     >
                         <Subtitle1 block className={classes.title}>
-                            Enable Chat Copilot Plugins
+                            Enable Bucky Plugins
                         </Subtitle1>
                         <Body1 as="p" block className={classes.description}>
                             Authorize plugins and have more powerful bots!

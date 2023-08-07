@@ -481,3 +481,6 @@ webapp/node_modules/
 
 # Custom plugin files used in webapp for testing
 webapp/public/.well-known*
+webapi/*.bak
+webapi/CopilotChat/Skills/ChatSkills/ChatSkill.cs.bak
+webapi/data

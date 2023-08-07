@@ -24,7 +24,7 @@ export const EnterManifestStep: React.FC<IEnterManifestStepProps> = ({
     manifestDomainError,
 }) => {
     const classes = useClasses();
-    const [input, setInput] = useState<string>( manifestDomain ?? '');
+    const [input, setInput] = useState<string>(manifestDomain ?? '');
 
     const keyStrokeTimeout = useRef(-1);
 
@@ -82,7 +82,7 @@ export const EnterManifestStep: React.FC<IEnterManifestStepProps> = ({
                 </div>
             )}
             <Body1 italic>
-                Note: Chat Copilot currently only supports plugins requiring{' '}
+                Note: Bucky currently only supports plugins requiring{' '}
                 <a
                     href={'https://platform.openai.com/docs/plugins/authentication/no-authentication'}
                     target="_blank"

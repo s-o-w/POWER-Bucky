@@ -357,6 +357,10 @@ public class ChatSkill
         chatContext.Variables.Set("audience", audience);
         chatContext.Variables.Set("userIntent", userIntent);
 
+        //use the intent to see if data is required from our POWER model(s), pull that data in if so
+        var _modelIdPlugin = new POWEREngineers.Bucky.Skills.POWEREngPlugins.ModelIdentifierPlugin(this._kernel);
+        string peModelData = await _modelIdPlugin.RouteRequest(chatContext);
+
         // Calculate the remaining token budget.
         await this.UpdateBotResponseStatusOnClient(chatId, "Calculating remaining token budget");
         var remainingToken = this.GetChatContextTokenLimit(audience, userIntent);
@@ -406,7 +410,7 @@ public class ChatSkill
         var documentMemories = tasks[1];
 
         // Fill in the chat history if there is any token budget left
-        var chatContextComponents = new List<string>() { chatMemories, documentMemories, planResult };
+        var chatContextComponents = new List<string>() { chatMemories, documentMemories, planResult, peModelData };
         var chatContextText = string.Join("\n\n", chatContextComponents.Where(c => !string.IsNullOrEmpty(c)));
         var chatHistoryTokenLimit = remainingToken - TokenUtilities.TokenCount(chatContextText);
         string chatHistory = string.Empty;
