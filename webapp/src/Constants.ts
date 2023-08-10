@@ -4,6 +4,7 @@ export const Constants = {
     app: {
         name: 'Bucky',
         updateCheckIntervalSeconds: 60 * 5,
+        CONNECTION_ALERT_ID: 'connection-alert',
     },
     msal: {
         method: 'redirect', // 'redirect' | 'popup'
@@ -53,4 +54,5 @@ export const Constants = {
         MANIFEST_PATH: '/.well-known/ai-plugin.json',
     },
     KEYSTROKE_DEBOUNCE_TIME_MS: 250,
+    STEPWISE_RESULT_NOT_FOUND_REGEX: /(Result not found, review _stepsTaken to see what happened\.)\s+(\[{.*}])/g,
 };

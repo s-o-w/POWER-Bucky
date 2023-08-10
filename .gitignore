@@ -484,3 +484,6 @@ webapp/public/.well-known*
 webapi/*.bak
 webapi/CopilotChat/Skills/ChatSkills/ChatSkill.cs.bak
 webapi/data
+
+# Auto-generated solution file from Visual Studio
+webapi/CopilotChatWebApi.sln
