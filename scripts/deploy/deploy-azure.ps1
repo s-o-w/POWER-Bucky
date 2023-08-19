@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Deploy CopilotChat Azure resources
+Deploy Chat Copilot Azure resources
 #>
 
 param(
@@ -13,6 +13,16 @@ param(
     [string]
     # Subscription to which to make the deployment
     $Subscription,
+
+    [Parameter(Mandatory)]
+    [string]
+    # Azure AD client ID for the Web API backend app registration
+    $BackendClientId,
+
+    [Parameter(Mandatory)]
+    [string]
+    # Azure AD tenant ID for authenticating users
+    $TenantId,
 
     [Parameter(Mandatory)]
     [ValidateSet("AzureOpenAI", "OpenAI")]
@@ -44,6 +54,10 @@ param(
     # SKU for the Azure App Service plan
     $WebAppServiceSku = "B1",
 
+    [string]
+    # Azure AD cloud instance for authenticating users
+    $AzureAdInstance = "https://login.microsoftonline.com",
+
     [ValidateSet("Volatile", "AzureCognitiveSearch", "Qdrant", "Postgres")]
     [string]
     # What method to use to persist embeddings
@@ -51,7 +65,7 @@ param(
 
     [SecureString]
     # Password for the Postgres database
-    $SqlAdminPassword = "",
+    $SqlAdminPassword,
 
     [switch]
     # Don't deploy Cosmos DB for chat storage - Use volatile memory instead
@@ -103,11 +117,14 @@ $jsonConfig = "
     `\`"aiService`\`": { `\`"value`\`": `\`"$AIService`\`" },
     `\`"aiApiKey`\`": { `\`"value`\`": `\`"$AIApiKey`\`" },
     `\`"aiEndpoint`\`": { `\`"value`\`": `\`"$AIEndpoint`\`" },
+    `\`"azureAdInstance`\`": { `\`"value`\`": `\`"$AzureAdInstance`\`" },
+    `\`"azureAdTenantId`\`": { `\`"value`\`": `\`"$TenantId`\`" },
+    `\`"webApiClientId`\`": { `\`"value`\`": `\`"$BackendClientId`\`"},
     `\`"deployNewAzureOpenAI`\`": { `\`"value`\`": $(If ($DeployAzureOpenAI) {"true"} Else {"false"}) },
     `\`"memoryStore`\`": { `\`"value`\`": `\`"$MemoryStore`\`" },
     `\`"deployCosmosDB`\`": { `\`"value`\`": $(If (!($NoCosmosDb)) {"true"} Else {"false"}) },
     `\`"deploySpeechServices`\`": { `\`"value`\`": $(If (!($NoSpeechServices)) {"true"} Else {"false"}) },
-    `\`"sqlAdminPassword`\`": { `\`"value`\`": `\`"$(ConvertFrom-SecureString $SqlAdminPassword -AsPlainText)`\`" }
+    `\`"sqlAdminPassword`\`": { `\`"value`\`": `\`"$(If ($SqlAdminPassword) {ConvertFrom-SecureString $SqlAdminPassword -AsPlainText} Else {$null})`\`" }
 }
 "
 
