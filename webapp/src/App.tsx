@@ -90,7 +90,7 @@ const App: FC = () => {
                             dispatch(
                                 addAlert({
                                     message:
-                                        'By using Chat Copilot, you agree to protect sensitive data, not store it in chat, and allow chat history collection for service improvements. This tool is for internal use only.',
+                                        'By using Bucky, you agree to protect sensitive data, not store it in chat, and allow chat history collection for service improvements. This tool is for internal use only.',
                                     type: AlertType.Info,
                                 }),
                             );
@@ -168,7 +168,7 @@ const Chat = ({
     return (
         <div className={classes.container}>
             <div className={classes.header}>
-                <Subtitle1 as="h1">Chat Copilot</Subtitle1>
+                <Subtitle1 as="h1">Bucky</Subtitle1>
                 {appState > AppState.SettingUserInfo && (
                     <div className={classes.cornerItems}>
                         <div data-testid="logOutMenuList" className={classes.cornerItems}>
