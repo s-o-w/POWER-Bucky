@@ -18,6 +18,18 @@ public class ModelIdentifierPlugin
     [SKFunction, Description("Routes the request to the appropriate data retrieval function.")]
     public async Task<string> RouteRequest(SKContext context)
     {
+        // check to see if we called this from AutoCAD and are using the AutoCAD Copilot
+        if (context.Variables.ContainsKey("POWERSkillTarget"))
+        {
+            if (context.Variables["POWERSkillTarget"] == "LispForCAD")
+            {
+                var cadSkill = _kernel.Skills.GetFunction("CADPlugin", "LispForAutoCAD");
+                await cadSkill.InvokeAsync(context);
+                string toReturn = context["input"].Trim();
+                return $"CADCP data:{toReturn}";
+            }
+        }
+
         // Save the original user request
         string request = context["input"];
 
