@@ -44,8 +44,8 @@ Summary: Tests if the title for the current chat can be changed
 export async function chatTitleChange(page) {
     await util.loginAndCreateNewChat(page);
 
-    await page.getByTestId('editChatTitleButton').click();
-    await page.locator('input[type="text"]').fill('Bucky Unit Tests');
+    await page.getByTestId('editChatTitleButtonSimplified').click();
+    await page.locator('input[type="text"]').fill('Copilot Unit Tests');
     await page.locator('input[type="text"]').press('Enter');
 
     await util.postUnitTest(page);
@@ -58,10 +58,10 @@ export async function documentUpload(page) {
     await util.loginAndCreateNewChat(page);
 
     const testFilename = 'Lorem_ipsum.pdf';
-    const testFilepath = './../importdocument/sample-docs/' + testFilename;
+    const testFilepath = './../tools/importdocument/sample-docs/' + testFilename;
     await page.setInputFiles("input[type='file']", testFilepath);
 
-    await page.getByTestId('filesTab').click(); // Go to the file page
+    await page.getByTestId('documentsTab').click(); // Go to the documents tab
     // Check if corresponding cell for the file exists after upload
     await page.getByRole('cell', { name: testFilename }).locator('path');
     await page.getByTestId('chatTab').click(); // Go back to the chat page

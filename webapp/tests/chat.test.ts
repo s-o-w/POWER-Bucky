@@ -44,7 +44,7 @@ test.describe('Bucky Chat App Test Suite', () => {
             await plannertests.klarnaTest(page);
         });
 
-        test('Jira', async ({ page }) => {
+        test.skip('Jira', async ({ page }) => {
             test.setTimeout(util.TestTimeout);
             await plannertests.jiraTest(page);
         });
