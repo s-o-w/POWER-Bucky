@@ -25,18 +25,18 @@ public class ModelIdentifierPlugin
             {
                 var cadSkill = _kernel.Skills.GetFunction("CADPlugin", "LispForAutoCAD");
                 await cadSkill.InvokeAsync(context);
-                string toReturn = context["input"].Trim();
+                string toReturn = context.Variables["input"].Trim();
                 return $"CADCP data:{toReturn}";
             }
         }
 
         // Save the original user request
-        string request = context["input"];
+        string request = context.Variables["input"];
 
         // Retrieve the intent from the user request
         var targetModel = _kernel.Skills.GetFunction("ModelIdentifierPlugin", "GetIntendedModel");
         await targetModel.InvokeAsync(context);
-        string intent = context["input"].Trim();
+        string intent = context.Variables["input"].Trim();
         string data = string.Empty;
         // Call the appropriate function
         switch (intent)
