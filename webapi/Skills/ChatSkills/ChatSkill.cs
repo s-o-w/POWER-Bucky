@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using CopilotChat.WebApi.Auth;
 using CopilotChat.WebApi.Extensions;
 using CopilotChat.WebApi.Hubs;
 using CopilotChat.WebApi.Models.Response;
@@ -25,6 +26,8 @@ using Microsoft.SemanticKernel.AI.TextCompletion;
 using Microsoft.SemanticKernel.Orchestration;
 using Microsoft.SemanticKernel.SkillDefinition;
 using Microsoft.SemanticKernel.TemplateEngine.Prompt;
+using Microsoft.SemanticMemory;
+using ChatCompletionContextMessages = Microsoft.SemanticKernel.AI.ChatCompletion.ChatHistory;
 
 namespace CopilotChat.WebApi.Skills.ChatSkills;
 
@@ -39,6 +42,11 @@ public class ChatSkill
     /// of the <see cref="ChatAsync"/> function will generate a new prompt dynamically.
     /// </summary>
     private readonly IKernel _kernel;
+
+    /// <summary>
+    /// Client for the semantic-memory service.
+    /// </summary>
+    private readonly ISemanticMemoryClient _memoryClient;
 
     /// <summary>
     /// A logger instance to log events.
@@ -66,14 +74,9 @@ public class ChatSkill
     private readonly PromptsOptions _promptOptions;
 
     /// <summary>
-    /// A semantic chat memory skill instance to query semantic memories.
+    /// A semantic memory retriever instance to query semantic memories.
     /// </summary>
-    private readonly SemanticChatMemorySkill _semanticChatMemorySkill;
-
-    /// <summary>
-    /// A document memory skill instance to query document memories.
-    /// </summary>
-    private readonly DocumentMemorySkill _documentMemorySkill;
+    private readonly SemanticMemoryRetriever _semanticMemoryRetriever;
 
     /// <summary>
     /// A skill instance to acquire external information.
@@ -90,6 +93,7 @@ public class ChatSkill
     /// </summary>
     public ChatSkill(
         IKernel kernel,
+        ISemanticMemoryClient memoryClient,
         ChatMessageRepository chatMessageRepository,
         ChatSessionRepository chatSessionRepository,
         IHubContext<MessageRelayHub> messageRelayHubContext,
@@ -101,20 +105,19 @@ public class ChatSkill
     {
         this._logger = logger;
         this._kernel = kernel;
+        this._memoryClient = memoryClient;
         this._chatMessageRepository = chatMessageRepository;
         this._chatSessionRepository = chatSessionRepository;
         this._messageRelayHubContext = messageRelayHubContext;
         // Clone the prompt options to avoid modifying the original prompt options.
         this._promptOptions = promptOptions.Value.Copy();
 
-        this._semanticChatMemorySkill = new SemanticChatMemorySkill(
+        this._semanticMemoryRetriever = new SemanticMemoryRetriever(
             promptOptions,
             chatSessionRepository,
+            memoryClient,
             logger);
-        this._documentMemorySkill = new DocumentMemorySkill(
-            promptOptions,
-            documentImportOptions,
-            logger);
+
         this._externalInformationSkill = new ExternalInformationSkill(
             promptOptions,
             planner,
@@ -163,8 +166,6 @@ public class ChatSkill
         // Get token usage from ChatCompletion result and add to context
         TokenUtilities.GetFunctionTokenUsage(result, context, this._logger, "SystemIntentExtraction");
 
-        result.ThrowIfFailed();
-
         return $"User intent: {result}";
     }
 
@@ -207,55 +208,92 @@ public class ChatSkill
         // Get token usage from ChatCompletion result and add to context
         TokenUtilities.GetFunctionTokenUsage(result, context, this._logger, "SystemAudienceExtraction");
 
-        result.ThrowIfFailed();
-
         return $"List of participants: {result}";
     }
 
     /// <summary>
-    /// Extract chat history.
+    /// Method that wraps GetAllowedChatHistoryAsync to get allotted history messages as one string.
+    /// GetAllowedChatHistoryAsync optionally updates a ChatHistory object with the allotted messages,
+    /// but the ChatHistory type is not supported when calling from a rendered prompt, so this wrapper bypasses the chatHistory parameter.
     /// </summary>
-    /// <param name="context">Contains the 'tokenLimit' controlling the length of the prompt.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     [SKFunction, Description("Extract chat history")]
-    public async Task<string> ExtractChatHistoryAsync(
+    public Task<string> ExtractChatHistory(
         [Description("Chat ID to extract history from")] string chatId,
         [Description("Maximum number of tokens")] int tokenLimit,
+        CancellationToken cancellationToken = default)
+    {
+        return this.GetAllowedChatHistoryAsync(chatId, tokenLimit, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Extract chat history within token limit as a formatted string and optionally update the ChatCompletionContextMessages object with the allotted messages
+    /// </summary>
+    /// <param name="chatId">Chat ID to extract history from.</param>
+    /// <param name="tokenLimit">Maximum number of tokens.</param>
+    /// <param name="chatHistory">Optional ChatCompletionContextMessages object tracking allotted messages.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>Chat history as a string.</returns>
+    private async Task<string> GetAllowedChatHistoryAsync(
+        string chatId,
+        int tokenLimit,
+        ChatCompletionContextMessages? chatHistory = null,
         CancellationToken cancellationToken = default)
     {
         var messages = await this._chatMessageRepository.FindByChatIdAsync(chatId);
         var sortedMessages = messages.OrderByDescending(m => m.Timestamp);
 
+        ChatCompletionContextMessages allottedChatHistory = new();
         var remainingToken = tokenLimit;
-
         string historyText = string.Empty;
+
         foreach (var chatMessage in sortedMessages)
         {
             var formattedMessage = chatMessage.ToFormattedString();
 
-            // Plan object is not meaningful content in generating bot response, so shorten to intent only to save on tokens
-            if (formattedMessage.Contains("proposedPlan\":", StringComparison.InvariantCultureIgnoreCase))
+            if (chatMessage.Type == ChatMessage.ChatMessageType.Document)
             {
-                string pattern = @"(\[.*?\]).*User Intent:User intent: (.*)(?=""}})";
-                Match match = Regex.Match(formattedMessage, pattern);
-                if (match.Success)
-                {
-                    string timestamp = match.Groups[1].Value.Trim();
-                    string userIntent = match.Groups[2].Value.Trim();
-
-                    formattedMessage = $"{timestamp} Bot proposed plan to fulfill user intent: {userIntent}";
-                }
-                else
-                {
-                    formattedMessage = "Bot proposed plan";
-                }
+                continue;
             }
 
-            var tokenCount = TokenUtilities.TokenCount(formattedMessage);
+            // Plan object is not meaningful content in generating bot response, so shorten to intent only to save on tokens
+            if (chatMessage.Type == ChatMessage.ChatMessageType.Plan)
+            {
+                formattedMessage = "Bot proposed plan";
+
+                // Try to extract the user intent for more context
+                string pattern = @"User intent: (.*)(?=""})";
+                Match match = Regex.Match(chatMessage.Content, pattern);
+                if (match.Success)
+                {
+                    string userIntent = match.Groups[1].Value.Trim();
+                    formattedMessage = $"Bot proposed plan to help fulfill goal: {userIntent}";
+                }
+
+                formattedMessage = $"[{chatMessage.Timestamp.ToString("G", CultureInfo.CurrentCulture)}] {formattedMessage}";
+            }
+
+            var promptRole = chatMessage.AuthorRole == ChatMessage.AuthorRoles.Bot ? AuthorRole.System : AuthorRole.User;
+            var tokenCount = chatHistory is not null ? TokenUtilities.GetContextMessageTokenCount(promptRole, formattedMessage) : TokenUtilities.TokenCount(formattedMessage);
 
             if (remainingToken - tokenCount >= 0)
             {
                 historyText = $"{formattedMessage}\n{historyText}";
+                if (chatMessage.AuthorRole == ChatMessage.AuthorRoles.Bot)
+                {
+                    // Message doesn't have to be formatted for bot. This helps with asserting a natural language response from the LLM (no date or author preamble).
+                    var botMessage = chatMessage.Type == ChatMessage.ChatMessageType.Plan ? formattedMessage : chatMessage.Content;
+                    allottedChatHistory.AddAssistantMessage(botMessage.Trim());
+                }
+                else
+                {
+                    // Omit user name if Auth is disabled.
+                    var userMessage = PassThroughAuthenticationHandler.IsDefaultUser(chatMessage.UserId)
+                            ? $"[{chatMessage.Timestamp.ToString("G", CultureInfo.CurrentCulture)}] {chatMessage.Content}"
+                            : formattedMessage;
+                    allottedChatHistory.AddUserMessage(userMessage.Trim());
+                }
+
                 remainingToken -= tokenCount;
             }
             else
@@ -263,6 +301,9 @@ public class ChatSkill
                 break;
             }
         }
+
+        allottedChatHistory.Reverse();
+        chatHistory?.AddRange(allottedChatHistory);
 
         return $"Chat history:\n{historyText.Trim()}";
     }
@@ -290,7 +331,7 @@ public class ChatSkill
 
         // Save this new message to memory such that subsequent chat responses can use it
         await this.UpdateBotResponseStatusOnClientAsync(chatId, "Saving user message to chat history", cancellationToken);
-        await this.SaveNewMessageAsync(message, userId, userName, chatId, messageType, cancellationToken);
+        var newUserMessage = await this.SaveNewMessageAsync(message, userId, userName, chatId, messageType, cancellationToken);
 
         // Clone the context to avoid modifying the original context variables.
         var chatContext = context.Clone();
@@ -309,12 +350,19 @@ public class ChatSkill
         if (chatContext.Variables.ContainsKey("userCancelledPlan"))
         {
             // Save hardcoded response if user cancelled plan
-            chatMessage = await this.SaveNewResponseAsync("I am sorry the plan did not meet your goals.", string.Empty, chatId, userId, TokenUtilities.EmptyTokenUsages(), cancellationToken);
+            chatMessage = await this.SaveNewResponseAsync(
+                "I am sorry the plan did not meet your goals.",
+                string.Empty,
+                chatId,
+                userId,
+                null,
+                TokenUtilities.EmptyTokenUsages(), cancellationToken
+            );
         }
         else
         {
             // Get the chat response
-            chatMessage = await this.GetChatResponseAsync(chatId, userId, chatContext, cancellationToken);
+            chatMessage = await this.GetChatResponseAsync(chatId, userId, chatContext, newUserMessage, cancellationToken);
         }
 
         context.Variables.Update(chatMessage.Content);
@@ -339,36 +387,53 @@ public class ChatSkill
     /// <param name="chatId">The chat ID</param>
     /// <param name="userId">The user ID</param>
     /// <param name="chatContext">The SKContext.</param>
+    /// <param name="userMessage">ChatMessage object representing new user message.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The created chat message containing the model-generated response.</returns>
-    private async Task<ChatMessage> GetChatResponseAsync(string chatId, string userId, SKContext chatContext, CancellationToken cancellationToken)
+    private async Task<ChatMessage> GetChatResponseAsync(string chatId, string userId, SKContext chatContext, ChatMessage userMessage, CancellationToken cancellationToken)
     {
-        // Get the audience
-        await this.UpdateBotResponseStatusOnClientAsync(chatId, "Extracting audience", cancellationToken);
-        var audience = await this.GetAudienceAsync(chatContext, cancellationToken);
-        chatContext.ThrowIfFailed();
+        // Render system instruction components
+        await this.UpdateBotResponseStatusOnClientAsync(chatId, "Initializing prompt", cancellationToken);
+        var promptRenderer = new PromptTemplateEngine();
+        var systemInstructions = await promptRenderer.RenderAsync(
+            this._promptOptions.SystemPersona,
+            chatContext,
+            cancellationToken);
+
+        // Create the meta-prompt template
+        var chatCompletion = this._kernel.GetService<IChatCompletion>();
+        var promptTemplate = chatCompletion.CreateNewChat(systemInstructions);
+
+        // Bypass audience extraction if Auth is disabled
+        var audience = string.Empty;
+        if (!PassThroughAuthenticationHandler.IsDefaultUser(userId))
+        {
+            // Get the audience
+            await this.UpdateBotResponseStatusOnClientAsync(chatId, "Extracting audience", cancellationToken);
+            audience = await SemanticKernelExtensions.SafeInvokeAsync(
+                () => this.GetAudienceAsync(chatContext, cancellationToken), nameof(GetAudienceAsync));
+            promptTemplate.AddSystemMessage(audience);
+        }
 
         // Extract user intent from the conversation history.
         await this.UpdateBotResponseStatusOnClientAsync(chatId, "Extracting user intent", cancellationToken);
-        var userIntent = await this.GetUserIntentAsync(chatContext, cancellationToken);
-        chatContext.ThrowIfFailed();
+        var userIntent = await SemanticKernelExtensions.SafeInvokeAsync(
+            () => this.GetUserIntentAsync(chatContext, cancellationToken), nameof(GetUserIntentAsync));
+        promptTemplate.AddSystemMessage(userIntent);
 
-        chatContext.Variables.Set("audience", audience);
-        chatContext.Variables.Set("userIntent", userIntent);
-
-        //use the intent to see if data is required from our POWER model(s), pull that data in if so
+        //POWER model data, use the intent to see if data is required from our POWER model(s), pull that data in if so
         var _modelIdPlugin = new POWEREngineers.Bucky.Skills.POWEREngPlugins.ModelIdentifierPlugin(this._kernel);
         string peModelData = await _modelIdPlugin.RouteRequest(chatContext);
 
         // Calculate the remaining token budget.
         await this.UpdateBotResponseStatusOnClientAsync(chatId, "Calculating remaining token budget", cancellationToken);
-        var remainingToken = this.GetChatContextTokenLimit(audience, userIntent);
+        var remainingTokenBudget = this.GetChatContextTokenLimit(promptTemplate, userMessage.ToFormattedString());
 
         // Acquire external information from planner
         await this.UpdateBotResponseStatusOnClientAsync(chatId, "Acquiring external information from planner", cancellationToken);
-        var externalInformationTokenLimit = (int)(remainingToken * this._promptOptions.ExternalInformationContextWeight);
-        var planResult = await this.AcquireExternalInformationAsync(chatContext, userIntent, externalInformationTokenLimit, cancellationToken);
-        chatContext.ThrowIfFailed();
+        var externalInformationTokenLimit = (int)(remainingTokenBudget * this._promptOptions.ExternalInformationContextWeight);
+        var planResult = await SemanticKernelExtensions.SafeInvokeAsync(
+            () => this.AcquireExternalInformationAsync(chatContext, userIntent, externalInformationTokenLimit, cancellationToken), nameof(AcquireExternalInformationAsync));
 
         // Extract additional details about planner execution in chat context
         // TODO: [Issue #150, sk#2106] Accommodate different planner contexts once core team finishes work to return prompt and token usage.
@@ -381,15 +446,13 @@ public class ChatSkill
         var proposedPlan = this._externalInformationSkill.ProposedPlan;
         if (proposedPlan != null)
         {
-            var prompt = proposedPlan.Plan.Description;
-            chatContext.Variables.Set("prompt", prompt);
-
             // Save a new response to the chat history with the proposed plan content
             return await this.SaveNewResponseAsync(
                 JsonSerializer.Serialize<ProposedPlan>(proposedPlan),
-                prompt,
+                proposedPlan.Plan.Description,
                 chatId,
                 userId,
+                null,
                 // TODO: [Issue #2106] Accommodate plan token usage differently
                 this.GetTokenUsages(chatContext),
                 cancellationToken
@@ -398,69 +461,42 @@ public class ChatSkill
 
         // Query relevant semantic and document memories
         await this.UpdateBotResponseStatusOnClientAsync(chatId, "Extracting semantic and document memories", cancellationToken);
-        var chatMemoriesTokenLimit = (int)(remainingToken * this._promptOptions.MemoriesResponseContextWeight);
-        var documentContextTokenLimit = (int)(remainingToken * this._promptOptions.DocumentContextWeight);
+        var chatMemoriesTokenLimit = (int)(remainingTokenBudget * this._promptOptions.MemoriesResponseContextWeight);
+        (var memoryText, var citationMap) = await this._semanticMemoryRetriever.QueryMemoriesAsync(userIntent, chatId, chatMemoriesTokenLimit);
 
-        string[] tasks = await Task.WhenAll<string>(
-            this._semanticChatMemorySkill.QueryMemoriesAsync(userIntent, chatId, chatMemoriesTokenLimit, this._kernel.Memory, cancellationToken),
-            this._documentMemorySkill.QueryDocumentsAsync(userIntent, chatId, documentContextTokenLimit, this._kernel.Memory, cancellationToken)
-        );
-
-        var chatMemories = tasks[0];
-        var documentMemories = tasks[1];
-
-        // Fill in the chat history if there is any token budget left
-        var chatContextComponents = new List<string>() { chatMemories, documentMemories, peModelData };
-        var chatContextText = string.Join("\n\n", chatContextComponents.Where(c => !string.IsNullOrEmpty(c)));
-        var chatHistoryTokenLimit = remainingToken - TokenUtilities.TokenCount(chatContextText) - TokenUtilities.TokenCount(planResult);
-
-        string chatHistory = string.Empty;
-
-        // Append the chat history, if allowed.
-        if (chatHistoryTokenLimit > 0)
+        if (!string.IsNullOrWhiteSpace(memoryText))
         {
-            await this.UpdateBotResponseStatusOnClientAsync(chatId, "Extracting chat history", cancellationToken);
-            chatHistory = await this.ExtractChatHistoryAsync(chatId, chatHistoryTokenLimit, cancellationToken);
-            chatContext.ThrowIfFailed();
-            chatContextText = $"{chatContextText}\n{chatHistory}";
+            promptTemplate.AddSystemMessage(memoryText);
         }
+
+        // Fill in the chat history with remaining token budget.
+        string chatHistory = string.Empty;
+        var chatHistoryTokenBudget = remainingTokenBudget - TokenUtilities.GetContextMessageTokenCount(AuthorRole.System, memoryText) - TokenUtilities.GetContextMessageTokenCount(AuthorRole.System, planResult);
+
+        // Append previous messages
+        await this.UpdateBotResponseStatusOnClientAsync(chatId, "Extracting chat history", cancellationToken);
+        chatHistory = await this.GetAllowedChatHistoryAsync(chatId, chatHistoryTokenBudget, promptTemplate, cancellationToken);
 
         // Append the plan result last, if exists, to imply precedence.
         if (!string.IsNullOrWhiteSpace(planResult))
         {
-            chatContextText = $"{chatContextText}\n{planResult}";
+            promptTemplate.AddSystemMessage(planResult);
         }
 
-        // Set variables needed in prompt
-        chatContext.Variables.Set("audience", audience);
-        chatContext.Variables.Set("userIntent", userIntent);
-        chatContext.Variables.Set("chatContext", chatContextText);
-
-        // Render the prompt
-        var promptRenderer = new PromptTemplateEngine();
-        var renderedPrompt = await promptRenderer.RenderAsync(
-            this._promptOptions.SystemChatPrompt,
-            chatContext,
-            cancellationToken);
-        chatContext.Variables.Set("prompt", renderedPrompt);
-
-        // Need to extract this from the rendered prompt because Time and Date are calculated during render
-        var systemChatContinuation = Regex.Match(renderedPrompt, PromptsOptions.SYSTEM_CHAT_CONTINUATION_REGEX).Value;
-        var promptView = new BotResponsePrompt(renderedPrompt, this._promptOptions.SystemDescription, this._promptOptions.SystemResponse, audience, userIntent, chatMemories, documentMemories, plannerDetails, chatHistory, systemChatContinuation);
-
+        // Render the prompt        
+        var promptView = new BotResponsePrompt(systemInstructions, audience, userIntent, memoryText, plannerDetails, chatHistory, promptTemplate);
         // Calculate token usage of prompt template
-        chatContext.Variables.Set(TokenUtilities.GetFunctionKey(this._logger, "SystemMetaPrompt")!, TokenUtilities.TokenCount(renderedPrompt).ToString(CultureInfo.InvariantCulture));
-
-        chatContext.ThrowIfFailed();
+        chatContext.Variables.Set(TokenUtilities.GetFunctionKey(this._logger, "SystemMetaPrompt")!, TokenUtilities.GetContextMessagesTokenCount(promptTemplate).ToString(CultureInfo.CurrentCulture));
 
         // Stream the response to the client
         await this.UpdateBotResponseStatusOnClientAsync(chatId, "Generating bot response", cancellationToken);
-        var chatMessage = await this.StreamResponseToClientAsync(chatId, userId, promptView, cancellationToken);
+        var chatMessage = await this.StreamResponseToClientAsync(chatId, userId, promptView, cancellationToken, citationMap.Values.AsEnumerable());
 
         // Extract semantic chat memory
         await this.UpdateBotResponseStatusOnClientAsync(chatId, "Generating semantic chat memory", cancellationToken);
         await SemanticChatMemoryExtractor.ExtractSemanticChatMemoryAsync(
             chatId,
+            this._memoryClient,
             this._kernel,
             chatContext,
             this._promptOptions,
@@ -487,7 +523,6 @@ public class ChatSkill
     private async Task<string> GetAudienceAsync(SKContext context, CancellationToken cancellationToken)
     {
         SKContext audienceContext = context.Clone();
-
         var audience = await this.ExtractAudienceAsync(audienceContext, cancellationToken);
 
         // Copy token usage into original chat context
@@ -496,9 +531,6 @@ public class ChatSkill
         {
             context.Variables.Set(functionKey, tokenUsage);
         }
-
-        // Propagate the error
-        audienceContext.ThrowIfFailed();
 
         return audience;
     }
@@ -523,37 +555,9 @@ public class ChatSkill
             {
                 context.Variables.Set(functionKey!, tokenUsage);
             }
-
-            intentContext.ThrowIfFailed();
         }
 
         return userIntent;
-    }
-
-    /// <summary>
-    /// Helper function that queries chat memories from the chat memory store.
-    /// </summary>
-    /// <returns>The chat memories.</returns>
-    /// <param name="context">The SKContext.</param>
-    /// <param name="userIntent">The user intent.</param>
-    /// <param name="tokenLimit">Maximum number of tokens.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    private Task<string> QueryChatMemoriesAsync(SKContext context, string userIntent, int tokenLimit, CancellationToken cancellationToken)
-    {
-        return this._semanticChatMemorySkill.QueryMemoriesAsync(userIntent, context.Variables["chatId"], tokenLimit, this._kernel.Memory, cancellationToken);
-    }
-
-    /// <summary>
-    /// Helper function that queries document memories from the document memory store.
-    /// </summary>
-    /// <returns>The document memories.</returns>
-    /// <param name="context">The SKContext.</param>
-    /// <param name="userIntent">The user intent.</param>
-    /// <param name="tokenLimit">Maximum number of tokens.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    private Task<string> QueryDocumentsAsync(SKContext context, string userIntent, int tokenLimit, CancellationToken cancellationToken)
-    {
-        return this._documentMemorySkill.QueryDocumentsAsync(userIntent, context.Variables["chatId"], tokenLimit, this._kernel.Memory, cancellationToken);
     }
 
     /// <summary>
@@ -568,13 +572,7 @@ public class ChatSkill
     {
         SKContext planContext = context.Clone();
         planContext.Variables.Set("tokenLimit", tokenLimit.ToString(new NumberFormatInfo()));
-
-        var plan = await this._externalInformationSkill.AcquireExternalInformationAsync(userIntent, planContext, cancellationToken);
-
-        // Propagate the error
-        planContext.ThrowIfFailed();
-
-        return plan;
+        return await this._externalInformationSkill.AcquireExternalInformationAsync(userIntent, planContext, cancellationToken);
     }
 
     /// <summary>
@@ -600,6 +598,7 @@ public class ChatSkill
             chatId,
             message,
             string.Empty,
+            null,
             ChatMessage.AuthorRoles.User,
             // Default to a standard message if the `type` is not recognized
             Enum.TryParse(type, out ChatMessage.ChatMessageType typeAsEnum) && Enum.IsDefined(typeof(ChatMessage.ChatMessageType), typeAsEnum)
@@ -617,10 +616,18 @@ public class ChatSkill
     /// <param name="prompt">Prompt used to generate the response.</param>
     /// <param name="chatId">The chat ID</param>
     /// <param name="userId">The user ID</param>
-    ///  <param name="tokenUsage">Total token usage of response completion</param>
-    ///  <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="citations">Citations for the message</param>
+    /// <param name="tokenUsage">Total token usage of response completion</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The created chat message.</returns>
-    private async Task<ChatMessage> SaveNewResponseAsync(string response, string prompt, string chatId, string userId, Dictionary<string, int>? tokenUsage, CancellationToken cancellationToken)
+    private async Task<ChatMessage> SaveNewResponseAsync(
+        string response,
+        string prompt,
+        string chatId,
+        string userId,
+        IEnumerable<CitationSource>? citations,
+        Dictionary<string, int>? tokenUsage,
+        CancellationToken cancellationToken)
     {
         // Make sure the chat exists.
         if (!await this._chatSessionRepository.TryFindByIdAsync(chatId))
@@ -629,8 +636,17 @@ public class ChatSkill
         }
 
         // Save message to chat history
-        var chatMessage = await this.CreateBotMessageOnClient(chatId, userId, prompt, response, cancellationToken, tokenUsage);
+        var chatMessage = await this.CreateBotMessageOnClient(
+            chatId,
+            userId,
+            prompt,
+            response,
+            citations,
+            cancellationToken,
+            tokenUsage
+        );
         await this._chatMessageRepository.UpsertAsync(chatMessage);
+
         return chatMessage;
     }
 
@@ -686,28 +702,17 @@ public class ChatSkill
 
     /// <summary>
     /// Calculate the remaining token budget for the chat response prompt.
-    /// This is the token limit minus the token count of the user intent and the system commands.
+    /// This is the token limit minus the token count of the user intent, audience, and the system commands.
     /// </summary>
-    /// <param name="audience">The audience returned by the model.</param>
-    /// <param name="userIntent">The user intent returned by the model.</param>
+    /// <param name="promptTemplate">All current messages to use for chat completion</param>
+    /// <param name="userIntent">The user message.</param>
     /// <returns>The remaining token limit.</returns>
-    private int GetChatContextTokenLimit(string audience, string userIntent)
+    private int GetChatContextTokenLimit(ChatCompletionContextMessages promptTemplate, string userInput)
     {
-        var tokenLimit = this._promptOptions.CompletionTokenLimit;
-        var remainingToken =
-            tokenLimit -
-            TokenUtilities.TokenCount(audience) -
-            TokenUtilities.TokenCount(userIntent) -
-            this._promptOptions.ResponseTokenLimit -
-            TokenUtilities.TokenCount(string.Join("\n", new string[]
-                {
-                            this._promptOptions.SystemDescription,
-                            this._promptOptions.SystemResponse,
-                            this._promptOptions.SystemChatContinuation
-                })
-            );
-
-        return remainingToken;
+        return this._promptOptions.CompletionTokenLimit
+            - TokenUtilities.GetContextMessagesTokenCount(promptTemplate)
+            - TokenUtilities.GetContextMessageTokenCount(AuthorRole.User, userInput) // User message has to be included in chat history allowance
+            - this._promptOptions.ResponseTokenLimit;
     }
 
     /// <summary>
@@ -744,15 +749,28 @@ public class ChatSkill
     /// <param name="userId">The user ID</param>
     /// <param name="prompt">Prompt used to generate the response</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="citations">Citations for the message</param>
     /// <returns>The created chat message</returns>
-    private async Task<ChatMessage> StreamResponseToClientAsync(string chatId, string userId, BotResponsePrompt prompt, CancellationToken cancellationToken)
+    private async Task<ChatMessage> StreamResponseToClientAsync(
+        string chatId,
+        string userId,
+        BotResponsePrompt prompt,
+        CancellationToken cancellationToken,
+        IEnumerable<CitationSource>? citations = null)
     {
         // Create the stream
         var chatCompletion = this._kernel.GetService<IChatCompletion>();
-        var stream = chatCompletion.GenerateMessageStreamAsync(chatCompletion.CreateNewChat(prompt.RawContent), this.CreateChatRequestSettings(), cancellationToken);
+        var stream = chatCompletion.GenerateMessageStreamAsync(prompt.MetaPromptTemplate, this.CreateChatRequestSettings(), cancellationToken);
 
         // Create message on client
-        var chatMessage = await this.CreateBotMessageOnClient(chatId, userId, JsonSerializer.Serialize(prompt), string.Empty, cancellationToken);
+        var chatMessage = await this.CreateBotMessageOnClient(
+            chatId,
+            userId,
+            JsonSerializer.Serialize(prompt),
+            string.Empty,
+            citations,
+            cancellationToken
+        );
 
         // Stream the message to the client
         await foreach (string contentPiece in stream)
@@ -771,12 +789,20 @@ public class ChatSkill
     /// <param name="userId">The user ID</param>
     /// <param name="prompt">Prompt used to generate the message</param>
     /// <param name="content">Content of the message</param>
+    /// <param name="citations">Citations for the message</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <param name="tokenUsage">Total token usage of response completion</param>
     /// <returns>The created chat message</returns>
-    private async Task<ChatMessage> CreateBotMessageOnClient(string chatId, string userId, string prompt, string content, CancellationToken cancellationToken, Dictionary<string, int>? tokenUsage = null)
+    private async Task<ChatMessage> CreateBotMessageOnClient(
+        string chatId,
+        string userId,
+        string prompt,
+        string content,
+        IEnumerable<CitationSource>? citations,
+        CancellationToken cancellationToken,
+        Dictionary<string, int>? tokenUsage = null)
     {
-        var chatMessage = ChatMessage.CreateBotResponseMessage(chatId, content, prompt, tokenUsage);
+        var chatMessage = ChatMessage.CreateBotResponseMessage(chatId, content, prompt, citations, tokenUsage);
         await this._messageRelayHubContext.Clients.Group(chatId).SendAsync("ReceiveMessage", chatId, userId, chatMessage, cancellationToken);
         return chatMessage;
     }

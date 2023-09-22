@@ -1,16 +1,17 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 
 using System.Threading;
+using System.Threading.Tasks;
 using CopilotChat.WebApi.Auth;
 using CopilotChat.WebApi.Hubs;
 using CopilotChat.WebApi.Models.Response;
 using CopilotChat.WebApi.Options;
+using CopilotChat.WebApi.Services.MemoryMigration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.SemanticKernel;
 
 namespace CopilotChat.WebApi.Controllers;
 
@@ -46,18 +47,36 @@ public class MaintenanceController : ControllerBase
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public ActionResult<MigrationResult?> GetMaintenanceStatus(
-        [FromServices] IKernel kernel,
+    public async Task<ActionResult<MaintenanceResult?>> GetMaintenanceStatusAsync(
+        [FromServices] IChatMigrationMonitor migrationMonitor,
         [FromServices] IHubContext<MessageRelayHub> messageRelayHubContext,
         CancellationToken cancellationToken = default)
     {
-        MigrationResult? result = null;
+        MaintenanceResult? result = null;
+
+        var migrationStatus = await migrationMonitor.GetCurrentStatusAsync(cancellationToken);
+
+        if (migrationStatus != ChatMigrationStatus.None)
+        {
+            result =
+                new MaintenanceResult
+                {
+                    Title = "Migrating Chat Memory",
+                    Message = "An upgrade requires that all non-document memories be migrated.  This may take several minutes...",
+                    Note = "Note: All document memories will need to be re-imported.",
+                };
+        }
 
         if (this._serviceOptions.Value.InMaintenance)
         {
-            result = new MigrationResult();
+            result = new MaintenanceResult(); // Default maintenance message
         }
 
-        return this.Ok(result);
+        if (result != null)
+        {
+            return this.Ok(result);
+        }
+
+        return this.Ok();
     }
 }

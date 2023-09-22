@@ -5,9 +5,10 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel.AI.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AI.OpenAI.AzureSdk;
-using Microsoft.SemanticKernel.Connectors.AI.OpenAI.Tokenizers;
 using Microsoft.SemanticKernel.Orchestration;
+using ChatCompletionContextMessages = Microsoft.SemanticKernel.AI.ChatCompletion.ChatHistory;
 
 namespace CopilotChat.WebApi.Skills;
 
@@ -67,24 +68,66 @@ public static class TokenUtilities
     /// <returns> true if token usage is found in result context; otherwise, false.</returns>
     internal static void GetFunctionTokenUsage(SKContext result, SKContext chatContext, ILogger logger, string? functionName = null)
     {
-        var functionKey = GetFunctionKey(logger, functionName);
-        if (functionKey == null)
+        try
         {
-            return;
-        }
+            var functionKey = GetFunctionKey(logger, functionName);
+            if (functionKey == null)
+            {
+                return;
+            }
 
-        if (result.ModelResults == null || result.ModelResults.Count == 0)
+            if (result.ModelResults == null || result.ModelResults.Count == 0)
+            {
+                logger.LogError("Unable to determine token usage for {0}", functionKey);
+                return;
+            }
+
+            var tokenUsage = result.ModelResults.First().GetResult<ChatModelResult>().Usage.TotalTokens;
+            chatContext.Variables.Set(functionKey!, tokenUsage.ToString(CultureInfo.InvariantCulture));
+        }
+        catch (Exception e)
         {
-            logger.LogError("Unable to determine token usage for {0}", functionKey);
-            return;
+            logger.LogError(e, "Unable to determine token usage for {0}", functionName);
+            throw e;
         }
-
-        var tokenUsage = result.ModelResults.First().GetResult<ChatModelResult>().Usage.TotalTokens;
-        chatContext.Variables.Set(functionKey!, tokenUsage.ToString(CultureInfo.InvariantCulture));
     }
 
     /// <summary>
-    /// Calculate the number of tokens in a string.
+    /// Calculate the number of tokens in a string using custom SharpToken token counter implementation with cl100k_base encoding.
     /// </summary>
-    internal static int TokenCount(string text) => GPT3Tokenizer.Encode(text).Count;
+    /// <param name="text">The string to calculate the number of tokens in.</param>
+    internal static int TokenCount(string text)
+    {
+        var tokenizer = SharpToken.GptEncoding.GetEncoding("cl100k_base");
+        var tokens = tokenizer.Encode(text);
+        return tokens.Count;
+    }
+
+    /// <summary>
+    /// Rough token costing of ChatHistory's message object.
+    /// Follows the syntax defined by Azure OpenAI's ChatMessage object: https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#chatmessage
+    /// e.g., "message": {"role":"assistant","content":"Yes }
+    /// </summary>
+    /// <param name="authorRole">Author role of the message.</param>
+    /// <param name="content">Content of the message.</param>
+    internal static int GetContextMessageTokenCount(AuthorRole authorRole, string content)
+    {
+        var tokenCount = authorRole == AuthorRole.System ? TokenCount("\n") : 0;
+        return tokenCount + TokenCount($"role:{authorRole.Label}") + TokenCount($"content:{content}");
+    }
+
+    /// <summary>
+    /// Rough token costing of ChatCompletionContextMessages object.
+    /// </summary>
+    /// <param name="chatHistory">ChatCompletionContextMessages object to calculate the number of tokens of.</param>
+    internal static int GetContextMessagesTokenCount(ChatCompletionContextMessages chatHistory)
+    {
+        var tokenCount = 0;
+        foreach (var message in chatHistory.Messages)
+        {
+            tokenCount += GetContextMessageTokenCount(message.Role, message.Content);
+        }
+
+        return tokenCount;
+    }
 }
