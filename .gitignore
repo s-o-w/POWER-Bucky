@@ -499,3 +499,7 @@ tools/importdocument/sample-docs/*
 tmp-cache
 tmp-database
 tmp-queues
+
+# Custom plugins in default directories
+*/Skills/NativePlugins
+*/Skills/SemanticPlugins
