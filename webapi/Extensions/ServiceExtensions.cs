@@ -41,29 +41,26 @@ public static class CopilotChatServiceExtensions
         // Authentication configuration
         AddOptions<ChatAuthenticationOptions>(ChatAuthenticationOptions.PropertyName);
 
-        // Chat log storage configuration
+        // Chat storage configuration
         AddOptions<ChatStoreOptions>(ChatStoreOptions.PropertyName);
 
         // Azure speech token configuration
         AddOptions<AzureSpeechOptions>(AzureSpeechOptions.PropertyName);
 
-        // Bot schema configuration
         AddOptions<BotSchemaOptions>(BotSchemaOptions.PropertyName);
 
-        // Document memory options
         AddOptions<DocumentMemoryOptions>(DocumentMemoryOptions.PropertyName);
 
         // Chat prompt options
         AddOptions<PromptsOptions>(PromptsOptions.PropertyName);
 
-        // Planner options
         AddOptions<PlannerOptions>(PlannerOptions.PropertyName);
 
-        // Content safety options
         AddOptions<ContentSafetyOptions>(ContentSafetyOptions.PropertyName);
 
-        // Semantic memory options
         AddOptions<SemanticMemoryConfig>(SemanticMemoryOptionsName);
+
+        AddOptions<FrontendOptions>(FrontendOptions.PropertyName);
 
         return services;
 
@@ -89,7 +86,7 @@ public static class CopilotChatServiceExtensions
         return services.AddScoped<AskConverter>();
     }
 
-    internal static IServiceCollection AddMainetnanceServices(this IServiceCollection services)
+    internal static IServiceCollection AddMaintenanceServices(this IServiceCollection services)
     {
         // Inject migration services
         services.AddSingleton<IChatMigrationMonitor, ChatMigrationMonitor>();
