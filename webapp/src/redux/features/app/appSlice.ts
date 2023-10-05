@@ -2,7 +2,7 @@
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Constants } from '../../../Constants';
-import { ServiceOptions } from '../../../libs/models/ServiceOptions';
+import { ServiceInfo } from '../../../libs/models/ServiceInfo';
 import { TokenUsage, TokenUsageFunctionNameMap } from '../../../libs/models/TokenUsage';
 import { ActiveUserInfo, Alert, AppState, FeatureKeys, initialState } from './AppState';
 
@@ -68,8 +68,11 @@ export const appSlice = createSlice({
                 },
             };
         },
-        setServiceOptions: (state: AppState, action: PayloadAction<ServiceOptions>) => {
-            state.serviceOptions = action.payload;
+        setServiceInfo: (state: AppState, action: PayloadAction<ServiceInfo>) => {
+            state.serviceInfo = action.payload;
+        },
+        setAuthConfig: (state: AppState, action: PayloadAction<AppState['authConfig']>) => {
+            state.authConfig = action.payload;
         },
     },
 });
@@ -82,8 +85,9 @@ export const {
     toggleFeatureFlag,
     toggleFeatureState,
     updateTokenUsage,
-    setServiceOptions,
+    setServiceInfo,
     setMaintenance,
+    setAuthConfig,
 } = appSlice.actions;
 
 export default appSlice.reducer;
