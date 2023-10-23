@@ -12,7 +12,11 @@ interface ServiceRequest {
 
 const noResponseBodyStatusCodes = [202, 204];
 
-export const BackendServiceUrl = process.env.REACT_APP_BACKEND_URI ?? window.origin;
+export const BackendServiceUrl =
+    process.env.REACT_APP_BACKEND_URI == null || process.env.REACT_APP_BACKEND_URI.trim() === ''
+        ? window.origin
+        : process.env.REACT_APP_BACKEND_URI;
+export const NetworkErrorMessage = '\n\nPlease check that your backend is running and that it is accessible by the app';
 
 export class BaseService {
     constructor(protected readonly serviceUrl: string = BackendServiceUrl) {}
@@ -76,13 +80,12 @@ export class BaseService {
 
             return (noResponseBodyStatusCodes.includes(response.status) ? {} : await response.json()) as T;
         } catch (e: any) {
-            let additionalErrorMsg = '';
+            let isNetworkError = false;
             if (e instanceof TypeError) {
                 // fetch() will reject with a TypeError when a network error is encountered.
-                additionalErrorMsg =
-                    '\n\nPlease check that your backend is running and that it is accessible by the app';
+                isNetworkError = true;
             }
-            throw Object.assign(new Error(`${e as string} ${additionalErrorMsg}`));
+            throw Object.assign(new Error(`${e as string} ${isNetworkError ? NetworkErrorMessage : ''}`));
         }
     };
 }
