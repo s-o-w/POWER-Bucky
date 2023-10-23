@@ -4,15 +4,17 @@ using Microsoft.SemanticKernel.SkillDefinition;
 using System.ComponentModel;
 using System.Threading.Tasks;
 
+#pragma warning disable IDE0130
 namespace POWEREngineers.Bucky.Skills.POWEREngPlugins;
+#pragma warning restore IDE0130
 
 public class ModelIdentifierPlugin
 {
-    IKernel _kernel;
+    private IKernel _kernel;
 
     public ModelIdentifierPlugin(IKernel kernel)
     {
-        _kernel = kernel;
+        this._kernel = kernel;
     }
 
     [SKFunction, Description("Routes the request to the appropriate data retrieval function.")]
@@ -23,7 +25,7 @@ public class ModelIdentifierPlugin
         {
             if (context.Variables["POWERSkillTarget"] == "LispForCAD")
             {
-                var cadSkill = _kernel.Skills.GetFunction("CADPlugin", "LispForAutoCAD");
+                var cadSkill = this._kernel.Skills.GetFunction("CADPlugin", "LispForAutoCAD");
                 await cadSkill.InvokeAsync(context);
                 string toReturn = context.Variables["input"].Trim();
                 return $"CADCP data:{toReturn}";
@@ -34,7 +36,7 @@ public class ModelIdentifierPlugin
         string request = context.Variables["input"];
 
         // Retrieve the intent from the user request
-        var targetModel = _kernel.Skills.GetFunction("ModelIdentifierPlugin", "GetIntendedModel");
+        var targetModel = this._kernel.Skills.GetFunction("ModelIdentifierPlugin", "GetIntendedModel");
         await targetModel.InvokeAsync(context);
         string intent = context.Variables["input"].Trim();
         string data = string.Empty;
@@ -42,15 +44,15 @@ public class ModelIdentifierPlugin
         switch (intent)
         {
             case "PDQMS":
-                var qmsSkill = new POWERQMSSkill(_kernel);
+                var qmsSkill = new POWERQMSSkill(this._kernel);
                 data = await qmsSkill.QueryQMSIndexAsync(request);
                 return $"PDQMS data:{data}";
             case "POWERAUS":
-                var ausSkill = new POWERAUSSkill(_kernel);
+                var ausSkill = new POWERAUSSkill(this._kernel);
                 data = await ausSkill.QueryAUSModelAsync(request);
                 return $"POWERAUS data:{data}";
             case "PDSUBKMP":
-                var kmpSkill = new POWERKMPSkill(_kernel);
+                var kmpSkill = new POWERKMPSkill(this._kernel);
                 data = await kmpSkill.QueryKMPModelAsync(request);
                 return $"PDSUBKMP data:{data}";
             case "UNKNOWN":
