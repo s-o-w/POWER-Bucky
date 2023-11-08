@@ -288,115 +288,115 @@ resource appServiceWebConfig 'Microsoft.Web/sites/config@2022-09-01' = {
           value: '~2'
         }
         {
-          name: 'SemanticMemory:ContentStorageType'
+          name: 'KernelMemory:ContentStorageType'
           value: 'AzureBlobs'
         }
         {
-          name: 'SemanticMemory:TextGeneratorType'
+          name: 'KernelMemory:TextGeneratorType'
           value: aiService
         }
         {
-          name: 'SemanticMemory:DataIngestion:OrchestrationType'
+          name: 'KernelMemory:DataIngestion:OrchestrationType'
           value: 'Distributed'
         }
         {
-          name: 'SemanticMemory:DataIngestion:DistributedOrchestration:QueueType'
+          name: 'KernelMemory:DataIngestion:DistributedOrchestration:QueueType'
           value: 'AzureQueue'
         }
         {
-          name: 'SemanticMemory:DataIngestion:EmbeddingGeneratorTypes:0'
+          name: 'KernelMemory:DataIngestion:EmbeddingGeneratorTypes:0'
           value: aiService
         }
         {
-          name: 'SemanticMemory:DataIngestion:VectorDbTypes:0'
+          name: 'KernelMemory:DataIngestion:VectorDbTypes:0'
           value: memoryStore
         }
         {
-          name: 'SemanticMemory:Retrieval:VectorDbType'
+          name: 'KernelMemory:Retrieval:VectorDbType'
           value: memoryStore
         }
         {
-          name: 'SemanticMemory:Retrieval:EmbeddingGeneratorType'
+          name: 'KernelMemory:Retrieval:EmbeddingGeneratorType'
           value: aiService
         }
         {
-          name: 'SemanticMemory:Services:AzureBlobs:Auth'
+          name: 'KernelMemory:Services:AzureBlobs:Auth'
           value: 'ConnectionString'
         }
         {
-          name: 'SemanticMemory:Services:AzureBlobs:ConnectionString'
+          name: 'KernelMemory:Services:AzureBlobs:ConnectionString'
           value: 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storage.listKeys().keys[1].value}'
         }
         {
-          name: 'SemanticMemory:Services:AzureBlobs:Container'
+          name: 'KernelMemory:Services:AzureBlobs:Container'
           value: 'chatmemory'
         }
         {
-          name: 'SemanticMemory:Services:AzureQueue:Auth'
+          name: 'KernelMemory:Services:AzureQueue:Auth'
           value: 'ConnectionString'
         }
         {
-          name: 'SemanticMemory:Services:AzureQueue:ConnectionString'
+          name: 'KernelMemory:Services:AzureQueue:ConnectionString'
           value: 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storage.listKeys().keys[1].value}'
         }
         {
-          name: 'SemanticMemory:Services:AzureCognitiveSearch:Auth'
+          name: 'KernelMemory:Services:AzureCognitiveSearch:Auth'
           value: 'ApiKey'
         }
         {
-          name: 'SemanticMemory:Services:AzureCognitiveSearch:Endpoint'
+          name: 'KernelMemory:Services:AzureCognitiveSearch:Endpoint'
           value: memoryStore == 'AzureCognitiveSearch' ? 'https://${azureCognitiveSearch.name}.search.windows.net' : ''
         }
         {
-          name: 'SemanticMemory:Services:AzureCognitiveSearch:APIKey'
+          name: 'KernelMemory:Services:AzureCognitiveSearch:APIKey'
           value: memoryStore == 'AzureCognitiveSearch' ? azureCognitiveSearch.listAdminKeys().primaryKey : ''
         }
         {
-          name: 'SemanticMemory:Services:Qdrant:Endpoint'
+          name: 'KernelMemory:Services:Qdrant:Endpoint'
           value: memoryStore == 'Qdrant' ? 'https://${appServiceQdrant.properties.defaultHostName}' : ''
         }
         {
-          name: 'SemanticMemory:Services:AzureOpenAIText:Auth'
+          name: 'KernelMemory:Services:AzureOpenAIText:Auth'
           value: 'ApiKey'
         }
         {
-          name: 'SemanticMemory:Services:AzureOpenAIText:Endpoint'
+          name: 'KernelMemory:Services:AzureOpenAIText:Endpoint'
           value: deployNewAzureOpenAI ? openAI.properties.endpoint : aiEndpoint
         }
         {
-          name: 'SemanticMemory:Services:AzureOpenAIText:APIKey'
+          name: 'KernelMemory:Services:AzureOpenAIText:APIKey'
           value: deployNewAzureOpenAI ? openAI.listKeys().key1 : aiApiKey
         }
         {
-          name: 'SemanticMemory:Services:AzureOpenAIText:Deployment'
+          name: 'KernelMemory:Services:AzureOpenAIText:Deployment'
           value: completionModel
         }
         {
-          name: 'SemanticMemory:Services:AzureOpenAIEmbedding:Auth'
+          name: 'KernelMemory:Services:AzureOpenAIEmbedding:Auth'
           value: 'ApiKey'
         }
         {
-          name: 'SemanticMemory:Services:AzureOpenAIEmbedding:Endpoint'
+          name: 'KernelMemory:Services:AzureOpenAIEmbedding:Endpoint'
           value: deployNewAzureOpenAI ? openAI.properties.endpoint : aiEndpoint
         }
         {
-          name: 'SemanticMemory:Services:AzureOpenAIEmbedding:APIKey'
+          name: 'KernelMemory:Services:AzureOpenAIEmbedding:APIKey'
           value: deployNewAzureOpenAI ? openAI.listKeys().key1 : aiApiKey
         }
         {
-          name: 'SemanticMemory:Services:AzureOpenAIEmbedding:Deployment'
+          name: 'KernelMemory:Services:AzureOpenAIEmbedding:Deployment'
           value: embeddingModel
         }
         {
-          name: 'SemanticMemory:Services:OpenAI:TextModel'
+          name: 'KernelMemory:Services:OpenAI:TextModel'
           value: completionModel
         }
         {
-          name: 'SemanticMemory:Services:OpenAI:EmbeddingModel'
+          name: 'KernelMemory:Services:OpenAI:EmbeddingModel'
           value: embeddingModel
         }
         {
-          name: 'SemanticMemory:Services:OpenAI:APIKey'
+          name: 'KernelMemory:Services:OpenAI:APIKey'
           value: aiApiKey
         }
         {
@@ -435,6 +435,7 @@ resource appServiceWebDeploy 'Microsoft.Web/sites/extensions@2022-09-01' = if (d
   }
   dependsOn: [
     appServiceWebConfig
+    webSubnetConnection
   ]
 }
 
@@ -463,135 +464,134 @@ resource appServiceMemoryPipelineConfig 'Microsoft.Web/sites/config@2022-09-01' 
     minTlsVersion: '1.2'
     netFrameworkVersion: 'v6.0'
     use32BitWorkerProcess: false
-    vnetName: webSubnetConnection.name
     vnetRouteAllEnabled: true
     appSettings: [
       {
-        name: 'SemanticMemory:ContentStorageType'
+        name: 'KernelMemory:ContentStorageType'
         value: 'AzureBlobs'
       }
       {
-        name: 'SemanticMemory:TextGeneratorType'
+        name: 'KernelMemory:TextGeneratorType'
         value: aiService
       }
       {
-        name: 'SemanticMemory:ImageOcrType'
+        name: 'KernelMemory:ImageOcrType'
         value: 'AzureFormRecognizer'
       }
       {
-        name: 'SemanticMemory:DataIngestion:OrchestrationType'
+        name: 'KernelMemory:DataIngestion:OrchestrationType'
         value: 'Distributed'
       }
       {
-        name: 'SemanticMemory:DataIngestion:DistributedOrchestration:QueueType'
+        name: 'KernelMemory:DataIngestion:DistributedOrchestration:QueueType'
         value: 'AzureQueue'
       }
       {
-        name: 'SemanticMemory:DataIngestion:EmbeddingGeneratorTypes:0'
+        name: 'KernelMemory:DataIngestion:EmbeddingGeneratorTypes:0'
         value: aiService
       }
       {
-        name: 'SemanticMemory:DataIngestion:VectorDbTypes:0'
+        name: 'KernelMemory:DataIngestion:VectorDbTypes:0'
         value: memoryStore
       }
       {
-        name: 'SemanticMemory:Retrieval:VectorDbType'
+        name: 'KernelMemory:Retrieval:VectorDbType'
         value: memoryStore
       }
       {
-        name: 'SemanticMemory:Retrieval:EmbeddingGeneratorType'
+        name: 'KernelMemory:Retrieval:EmbeddingGeneratorType'
         value: aiService
       }
       {
-        name: 'SemanticMemory:Services:AzureBlobs:Auth'
+        name: 'KernelMemory:Services:AzureBlobs:Auth'
         value: 'ConnectionString'
       }
       {
-        name: 'SemanticMemory:Services:AzureBlobs:ConnectionString'
+        name: 'KernelMemory:Services:AzureBlobs:ConnectionString'
         value: 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storage.listKeys().keys[1].value}'
       }
       {
-        name: 'SemanticMemory:Services:AzureBlobs:Container'
+        name: 'KernelMemory:Services:AzureBlobs:Container'
         value: 'chatmemory'
       }
       {
-        name: 'SemanticMemory:Services:AzureQueue:Auth'
+        name: 'KernelMemory:Services:AzureQueue:Auth'
         value: 'ConnectionString'
       }
       {
-        name: 'SemanticMemory:Services:AzureQueue:ConnectionString'
+        name: 'KernelMemory:Services:AzureQueue:ConnectionString'
         value: 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storage.listKeys().keys[1].value}'
       }
       {
-        name: 'SemanticMemory:Services:AzureCognitiveSearch:Auth'
+        name: 'KernelMemory:Services:AzureCognitiveSearch:Auth'
         value: 'ApiKey'
       }
       {
-        name: 'SemanticMemory:Services:AzureCognitiveSearch:Endpoint'
+        name: 'KernelMemory:Services:AzureCognitiveSearch:Endpoint'
         value: memoryStore == 'AzureCognitiveSearch' ? 'https://${azureCognitiveSearch.name}.search.windows.net' : ''
       }
       {
-        name: 'SemanticMemory:Services:AzureCognitiveSearch:APIKey'
+        name: 'KernelMemory:Services:AzureCognitiveSearch:APIKey'
         value: memoryStore == 'AzureCognitiveSearch' ? azureCognitiveSearch.listAdminKeys().primaryKey : ''
       }
       {
-        name: 'SemanticMemory:Services:Qdrant:Endpoint'
+        name: 'KernelMemory:Services:Qdrant:Endpoint'
         value: memoryStore == 'Qdrant' ? 'https://${appServiceQdrant.properties.defaultHostName}' : ''
       }
       {
-        name: 'SemanticMemory:Services:AzureOpenAIText:Auth'
+        name: 'KernelMemory:Services:AzureOpenAIText:Auth'
         value: 'ApiKey'
       }
       {
-        name: 'SemanticMemory:Services:AzureOpenAIText:Endpoint'
+        name: 'KernelMemory:Services:AzureOpenAIText:Endpoint'
         value: deployNewAzureOpenAI ? openAI.properties.endpoint : aiEndpoint
       }
       {
-        name: 'SemanticMemory:Services:AzureOpenAIText:APIKey'
+        name: 'KernelMemory:Services:AzureOpenAIText:APIKey'
         value: deployNewAzureOpenAI ? openAI.listKeys().key1 : aiApiKey
       }
       {
-        name: 'SemanticMemory:Services:AzureOpenAIText:Deployment'
+        name: 'KernelMemory:Services:AzureOpenAIText:Deployment'
         value: completionModel
       }
       {
-        name: 'SemanticMemory:Services:AzureOpenAIEmbedding:Auth'
+        name: 'KernelMemory:Services:AzureOpenAIEmbedding:Auth'
         value: 'ApiKey'
       }
       {
-        name: 'SemanticMemory:Services:AzureOpenAIEmbedding:Endpoint'
+        name: 'KernelMemory:Services:AzureOpenAIEmbedding:Endpoint'
         value: deployNewAzureOpenAI ? openAI.properties.endpoint : aiEndpoint
       }
       {
-        name: 'SemanticMemory:Services:AzureOpenAIEmbedding:APIKey'
+        name: 'KernelMemory:Services:AzureOpenAIEmbedding:APIKey'
         value: deployNewAzureOpenAI ? openAI.listKeys().key1 : aiApiKey
       }
       {
-        name: 'SemanticMemory:Services:AzureOpenAIEmbedding:Deployment'
+        name: 'KernelMemory:Services:AzureOpenAIEmbedding:Deployment'
         value: embeddingModel
       }
       {
-        name: 'SemanticMemory:Services:AzureFormRecognizer:Auth'
+        name: 'KernelMemory:Services:AzureFormRecognizer:Auth'
         value: 'ApiKey'
       }
       {
-        name: 'SemanticMemory:Services:AzureFormRecognizer:Endpoint'
+        name: 'KernelMemory:Services:AzureFormRecognizer:Endpoint'
         value: ocrAccount.properties.endpoint
       }
       {
-        name: 'SemanticMemory:Services:AzureFormRecognizer:APIKey'
+        name: 'KernelMemory:Services:AzureFormRecognizer:APIKey'
         value: ocrAccount.listKeys().key1
       }
       {
-        name: 'SemanticMemory:Services:OpenAI:TextModel'
+        name: 'KernelMemory:Services:OpenAI:TextModel'
         value: completionModel
       }
       {
-        name: 'SemanticMemory:Services:OpenAI:EmbeddingModel'
+        name: 'KernelMemory:Services:OpenAI:EmbeddingModel'
         value: embeddingModel
       }
       {
-        name: 'SemanticMemory:Services:OpenAI:APIKey'
+        name: 'KernelMemory:Services:OpenAI:APIKey'
         value: aiApiKey
       }
       {
@@ -623,6 +623,7 @@ resource appServiceMemoryPipelineDeploy 'Microsoft.Web/sites/extensions@2022-09-
   }
   dependsOn: [
     appServiceMemoryPipelineConfig
+    memSubnetConnection
   ]
 }
 
@@ -883,16 +884,6 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2021-05-01' = {
           privateLinkServiceNetworkPolicies: 'Enabled'
         }
       }
-      {
-        name: 'postgresSubnet'
-        properties: {
-          addressPrefix: '10.0.3.0/24'
-          serviceEndpoints: []
-          delegations: []
-          privateEndpointNetworkPolicies: 'Disabled'
-          privateLinkServiceNetworkPolicies: 'Enabled'
-        }
-      }
     ]
   }
 }
@@ -930,6 +921,15 @@ resource qdrantNsg 'Microsoft.Network/networkSecurityGroups@2022-11-01' = {
 resource webSubnetConnection 'Microsoft.Web/sites/virtualNetworkConnections@2022-09-01' = {
   parent: appServiceWeb
   name: 'webSubnetConnection'
+  properties: {
+    vnetResourceId: virtualNetwork.properties.subnets[0].id
+    isSwift: true
+  }
+}
+
+resource memSubnetConnection 'Microsoft.Web/sites/virtualNetworkConnections@2022-09-01' = {
+  parent: appServiceMemoryPipeline
+  name: 'memSubnetConnection'
   properties: {
     vnetResourceId: virtualNetwork.properties.subnets[0].id
     isSwift: true

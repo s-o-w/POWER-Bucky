@@ -28,13 +28,12 @@ using Microsoft.Extensions.Options;
 using Microsoft.Graph;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Diagnostics;
+using Microsoft.SemanticKernel.Functions.OpenAPI.Authentication;
+using Microsoft.SemanticKernel.Functions.OpenAPI.Extensions;
 using Microsoft.SemanticKernel.Orchestration;
-using Microsoft.SemanticKernel.SkillDefinition;
-using Microsoft.SemanticKernel.Skills.MsGraph;
-using Microsoft.SemanticKernel.Skills.MsGraph.Connectors;
-using Microsoft.SemanticKernel.Skills.MsGraph.Connectors.Client;
-using Microsoft.SemanticKernel.Skills.OpenAPI.Authentication;
-using Microsoft.SemanticKernel.Skills.OpenAPI.Extensions;
+using Microsoft.SemanticKernel.Plugins.MsGraph;
+using Microsoft.SemanticKernel.Plugins.MsGraph.Connectors;
+using Microsoft.SemanticKernel.Plugins.MsGraph.Connectors.Client;
 
 namespace CopilotChat.WebApi.Controllers;
 
@@ -45,6 +44,7 @@ namespace CopilotChat.WebApi.Controllers;
 public class ChatController : ControllerBase, IDisposable
 {
     private readonly ILogger<ChatController> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly List<IDisposable> _disposables;
     private readonly ITelemetryService _telemetryService;
     private readonly ServiceOptions _serviceOptions;
@@ -58,12 +58,14 @@ public class ChatController : ControllerBase, IDisposable
 
     public ChatController(
         ILogger<ChatController> logger,
+        IHttpClientFactory httpClientFactory,
         ITelemetryService telemetryService,
         IOptions<ServiceOptions> serviceOptions,
         IOptions<PlannerOptions> plannerOptions,
         IDictionary<string, Plugin> plugins)
     {
         this._logger = logger;
+        this._httpClientFactory = httpClientFactory;
         this._telemetryService = telemetryService;
         this._disposables = new List<IDisposable>();
         this._serviceOptions = serviceOptions.Value;
@@ -143,8 +145,6 @@ public class ChatController : ControllerBase, IDisposable
         return await this.HandleRequest(ProcessPlanFunctionName, kernel, messageRelayHubContext, planner, askConverter, chatSessionRepository, chatParticipantRepository, authInfo, ask, chatId.ToString());
     }
 
-    #region Private Methods
-
     /// <summary>
     /// Invokes given function of ChatSkill.
     /// </summary>
@@ -176,8 +176,7 @@ public class ChatController : ControllerBase, IDisposable
 
         // Verify that the chat exists and that the user has access to it.
         ChatSession? chat = null;
-#pragma warning disable CA1508 // Avoid dead conditional code. It's giving out false positives on chat == null.
-        if (!(await chatSessionRepository.TryFindByIdAsync(chatId, callback: c => chat = c)) || chat == null)
+        if (!(await chatSessionRepository.TryFindByIdAsync(chatId, callback: c => chat = c)))
         {
             return this.NotFound("Failed to find chat session for the chatId specified in variables.");
         }
@@ -192,13 +191,13 @@ public class ChatController : ControllerBase, IDisposable
         await this.RegisterPlannerSkillsAsync(planner, openApiSkillsAuthHeaders, contextVariables);
 
         // Register hosted plugins that have been enabled
-        await this.RegisterPlannerHostedSkillsAsync(planner, chat.EnabledPlugins);
+        await this.RegisterPlannerHostedSkillsAsync(planner, chat!.EnabledPlugins);
 
         // Get the function to invoke
         ISKFunction? function = null;
         try
         {
-            function = kernel.Skills.GetFunction(ChatSkillName, functionName);
+            function = kernel.Functions.GetFunction(ChatSkillName, functionName);
         }
         catch (SKException ex)
         {
@@ -207,7 +206,7 @@ public class ChatController : ControllerBase, IDisposable
         }
 
         // Run the function.
-        SKContext? result = null;
+        KernelResult? result = null;
         try
         {
             using CancellationTokenSource? cts = this._serviceOptions.TimeoutLimitInS is not null
@@ -233,8 +232,8 @@ public class ChatController : ControllerBase, IDisposable
 
         AskResult chatSkillAskResult = new()
         {
-            Value = result.Result,
-            Variables = result.Variables.Select(v => new KeyValuePair<string, string>(v.Key, v.Value))
+            Value = result.GetValue<string>() ?? string.Empty,
+            Variables = contextVariables.Select(v => new KeyValuePair<string, string>(v.Key, v.Value))
         };
 
         // Broadcast AskResult to all users
@@ -280,10 +279,10 @@ public class ChatController : ControllerBase, IDisposable
         {
             this._logger.LogInformation("Enabling GitHub plugin.");
             BearerAuthenticationProvider authenticationProvider = new(() => Task.FromResult(GithubAuthHeader));
-            await planner.Kernel.ImportAIPluginAsync(
-                skillName: "GitHubPlugin",
+            await planner.Kernel.ImportPluginFunctionsAsync(
+                pluginName: "GitHubPlugin",
                 filePath: Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "Skills", "OpenApiPlugins/GitHubPlugin/openapi.json"),
-                new OpenApiSkillExecutionParameters
+                new OpenApiFunctionExecutionParameters
                 {
                     AuthCallback = authenticationProvider.AuthenticateRequestAsync,
                 });
@@ -296,10 +295,10 @@ public class ChatController : ControllerBase, IDisposable
             var authenticationProvider = new BasicAuthenticationProvider(() => { return Task.FromResult(JiraAuthHeader); });
             var hasServerUrlOverride = variables.TryGetValue("jira-server-url", out string? serverUrlOverride);
 
-            await planner.Kernel.ImportAIPluginAsync(
-                skillName: "JiraPlugin",
+            await planner.Kernel.ImportPluginFunctionsAsync(
+                pluginName: "JiraPlugin",
                 filePath: Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "Skills", "OpenApiPlugins/JiraPlugin/openapi.json"),
-                new OpenApiSkillExecutionParameters
+                new OpenApiFunctionExecutionParameters
                 {
                     AuthCallback = authenticationProvider.AuthenticateRequestAsync,
                     ServerUrlOverride = hasServerUrlOverride ? new Uri(serverUrlOverride!) : null,
@@ -313,9 +312,9 @@ public class ChatController : ControllerBase, IDisposable
             BearerAuthenticationProvider authenticationProvider = new(() => Task.FromResult(GraphAuthHeader));
             GraphServiceClient graphServiceClient = this.CreateGraphServiceClient(authenticationProvider.AuthenticateRequestAsync);
 
-            planner.Kernel.ImportSkill(new TaskListSkill(new MicrosoftToDoConnector(graphServiceClient)), "todo");
-            planner.Kernel.ImportSkill(new CalendarSkill(new OutlookCalendarConnector(graphServiceClient)), "calendar");
-            planner.Kernel.ImportSkill(new EmailSkill(new OutlookMailConnector(graphServiceClient)), "email");
+            planner.Kernel.ImportFunctions(new TaskListPlugin(new MicrosoftToDoConnector(graphServiceClient)), "todo");
+            planner.Kernel.ImportFunctions(new CalendarPlugin(new OutlookCalendarConnector(graphServiceClient)), "calendar");
+            planner.Kernel.ImportFunctions(new EmailPlugin(new OutlookMailConnector(graphServiceClient)), "email");
         }
 
         if (variables.TryGetValue("customPlugins", out string? customPluginsString))
@@ -335,15 +334,12 @@ public class ChatController : ControllerBase, IDisposable
                         var requiresAuth = !plugin.AuthType.Equals("none", StringComparison.OrdinalIgnoreCase);
                         BearerAuthenticationProvider authenticationProvider = new(() => Task.FromResult(PluginAuthValue));
 
-                        HttpClient httpClient = new();
-                        httpClient.Timeout = TimeSpan.FromSeconds(this._plannerOptions.PluginTimeoutLimitInS);
-
-                        await planner.Kernel.ImportAIPluginAsync(
+                        await planner.Kernel.ImportPluginFunctionsAsync(
                             $"{plugin.NameForModel}Plugin",
                             PluginUtils.GetPluginManifestUri(plugin.ManifestDomain),
-                            new OpenApiSkillExecutionParameters
+                            new OpenApiFunctionExecutionParameters
                             {
-                                HttpClient = httpClient,
+                                HttpClient = this._httpClientFactory.CreateClient("Plugin"),
                                 IgnoreNonCompliantErrors = true,
                                 AuthCallback = requiresAuth ? authenticationProvider.AuthenticateRequestAsync : null
                             });
@@ -390,12 +386,12 @@ public class ChatController : ControllerBase, IDisposable
                     () => Task.FromResult(plugin.Key));
 
                 // Register the ChatGPT plugin with the planner's kernel.
-                await planner.Kernel.ImportAIPluginAsync(
+                await planner.Kernel.ImportPluginFunctionsAsync(
                     PluginUtils.SanitizePluginName(plugin.Name),
                     PluginUtils.GetPluginManifestUri(plugin.ManifestDomain),
-                    new OpenApiSkillExecutionParameters
+                    new OpenApiFunctionExecutionParameters
                     {
-                        HttpClient = new HttpClient(),
+                        HttpClient = this._httpClientFactory.CreateClient("Plugin"),
                         IgnoreNonCompliantErrors = true,
                         AuthCallback = authenticationProvider.AuthenticateRequestAsync
                     });
@@ -407,8 +403,6 @@ public class ChatController : ControllerBase, IDisposable
         }
         return;
     }
-
-    #endregion
 
     /// <summary>
     /// Dispose of the object.

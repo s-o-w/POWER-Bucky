@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Reflection;
 using System.Threading.Tasks;
 using CopilotChat.WebApi.Hubs;
@@ -17,10 +18,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Diagnostics;
-using Microsoft.SemanticKernel.Skills.Core;
-using Microsoft.SemanticMemory;
+using Microsoft.SemanticKernel.Plugins.Core;
 
 namespace CopilotChat.WebApi.Extensions;
 
@@ -150,10 +151,10 @@ internal static class SemanticKernelExtensions
     public static IKernel RegisterChatSkill(this IKernel kernel, IServiceProvider sp)
     {
         // Chat skill
-        kernel.ImportSkill(
+        kernel.ImportFunctions(
             new ChatSkill(
                 kernel,
-                memoryClient: sp.GetRequiredService<ISemanticMemoryClient>(),
+                memoryClient: sp.GetRequiredService<IKernelMemory>(),
                 chatMessageRepository: sp.GetRequiredService<ChatMessageRepository>(),
                 chatSessionRepository: sp.GetRequiredService<ChatSessionRepository>(),
                 messageRelayHubContext: sp.GetRequiredService<IHubContext<MessageRelayHub>>(),
@@ -169,7 +170,7 @@ internal static class SemanticKernelExtensions
 
     private static void InitializeKernelProvider(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSingleton(sp => new SemanticKernelProvider(sp, builder.Configuration));
+        builder.Services.AddSingleton(sp => new SemanticKernelProvider(sp, builder.Configuration, sp.GetRequiredService<IHttpClientFactory>()));
     }
 
     /// <summary>
@@ -177,11 +178,11 @@ internal static class SemanticKernelExtensions
     /// </summary>
     private static Task RegisterChatCopilotSkillsAsync(IServiceProvider sp, IKernel kernel)
     {
-        // Copilot chat skills
+        // Chat Copilot skills
         kernel.RegisterChatSkill(sp);
 
         // Time skill
-        kernel.ImportSkill(new TimeSkill(), nameof(TimeSkill));
+        kernel.ImportFunctions(new TimePlugin(), nameof(TimePlugin));
 
         return Task.CompletedTask;
     }
@@ -201,7 +202,7 @@ internal static class SemanticKernelExtensions
             {
                 try
                 {
-                    kernel.ImportSemanticSkillFromDirectory(options.SemanticPluginsDirectory, Path.GetFileName(subDir)!);
+                    kernel.ImportSemanticFunctionsFromDirectory(options.SemanticPluginsDirectory, Path.GetFileName(subDir)!);
                 }
                 catch (SKException ex)
                 {
@@ -230,7 +231,7 @@ internal static class SemanticKernelExtensions
                     try
                     {
                         var plugin = Activator.CreateInstance(classType);
-                        kernel.ImportSkill(plugin!, classType.Name!);
+                        kernel.ImportFunctions(plugin!, classType.Name!);
                     }
                     catch (SKException ex)
                     {
@@ -262,7 +263,7 @@ internal static class SemanticKernelExtensions
     /// </summary>
     private static ChatArchiveEmbeddingConfig WithBotConfig(this IServiceProvider provider, IConfiguration configuration)
     {
-        var memoryOptions = provider.GetRequiredService<IOptions<SemanticMemoryConfig>>().Value;
+        var memoryOptions = provider.GetRequiredService<IOptions<KernelMemoryConfig>>().Value;
 
         switch (memoryOptions.Retrieval.EmbeddingGeneratorType)
         {
