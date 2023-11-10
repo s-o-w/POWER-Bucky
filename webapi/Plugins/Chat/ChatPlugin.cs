@@ -14,8 +14,8 @@ using CopilotChat.WebApi.Hubs;
 using CopilotChat.WebApi.Models.Response;
 using CopilotChat.WebApi.Models.Storage;
 using CopilotChat.WebApi.Options;
+using CopilotChat.WebApi.Plugins.Utils;
 using CopilotChat.WebApi.Services;
-using CopilotChat.WebApi.Skills.Utils;
 using CopilotChat.WebApi.Storage;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
@@ -28,16 +28,17 @@ using Microsoft.SemanticKernel.Connectors.AI.OpenAI;
 using Microsoft.SemanticKernel.Diagnostics;
 using Microsoft.SemanticKernel.Orchestration;
 using Microsoft.SemanticKernel.Planning;
+using Microsoft.SemanticKernel.TemplateEngine;
 using Microsoft.SemanticKernel.TemplateEngine.Basic;
 using ChatCompletionContextMessages = Microsoft.SemanticKernel.AI.ChatCompletion.ChatHistory;
 
-namespace CopilotChat.WebApi.Skills.ChatSkills;
+namespace CopilotChat.WebApi.Plugins.Chat;
 
 /// <summary>
-/// ChatSkill offers a more coherent chat experience by using memories
+/// ChatPlugin offers a more coherent chat experience by using memories
 /// to extract conversation history and user intentions.
 /// </summary>
-public class ChatSkill
+public class ChatPlugin
 {
     /// <summary>
     /// A kernel instance to create a completion function since each invocation
@@ -46,7 +47,7 @@ public class ChatSkill
     private readonly IKernel _kernel;
 
     /// <summary>
-    /// Client for the semantic-memory service.
+    /// Client for the kernel memory service.
     /// </summary>
     private readonly IKernelMemory _memoryClient;
 
@@ -76,14 +77,14 @@ public class ChatSkill
     private readonly PromptsOptions _promptOptions;
 
     /// <summary>
-    /// A semantic memory retriever instance to query semantic memories.
+    /// A kernel memory retriever instance to query semantic memories.
     /// </summary>
     private readonly SemanticMemoryRetriever _semanticMemoryRetriever;
 
     /// <summary>
-    /// A skill instance to acquire external information.
+    /// A plugin instance to acquire external information.
     /// </summary>
-    private readonly ExternalInformationSkill _externalInformationSkill;
+    private readonly ExternalInformationPlugin _externalInformationPlugin;
 
     /// <summary>
     /// Azure content safety moderator.
@@ -91,9 +92,9 @@ public class ChatSkill
     private readonly AzureContentSafety? _contentSafety = null;
 
     /// <summary>
-    /// Create a new instance of <see cref="ChatSkill"/>.
+    /// Create a new instance of <see cref="ChatPlugin"/>.
     /// </summary>
-    public ChatSkill(
+    public ChatPlugin(
         IKernel kernel,
         IKernelMemory memoryClient,
         ChatMessageRepository chatMessageRepository,
@@ -120,7 +121,7 @@ public class ChatSkill
             memoryClient,
             logger);
 
-        this._externalInformationSkill = new ExternalInformationSkill(
+        this._externalInformationPlugin = new ExternalInformationPlugin(
             promptOptions,
             planner,
             logger);
@@ -153,7 +154,7 @@ public class ChatSkill
 
         var completionFunction = this._kernel.CreateSemanticFunction(
             this._promptOptions.SystemIntentExtraction,
-            pluginName: nameof(ChatSkill),
+            pluginName: nameof(ChatPlugin),
             description: "Complete the prompt.");
 
         var result = await completionFunction.InvokeAsync(
@@ -193,7 +194,7 @@ public class ChatSkill
 
         var completionFunction = this._kernel.CreateSemanticFunction(
             this._promptOptions.SystemAudienceExtraction,
-            pluginName: nameof(ChatSkill),
+            pluginName: nameof(ChatPlugin),
             description: "Complete the prompt.");
 
         var result = await completionFunction.InvokeAsync(
@@ -341,7 +342,7 @@ public class ChatSkill
         }
         else
         {
-            this._logger.LogWarning("ChatSkill.ChatAsync token usage unknown. Ensure token management has been implemented correctly.");
+            this._logger.LogWarning("ChatPlugin.ChatAsync token usage unknown. Ensure token management has been implemented correctly.");
         }
 
         return context;
@@ -435,12 +436,10 @@ public class ChatSkill
             chatHistoryString += "\n" + PromptUtils.FormatChatHistoryMessage(ChatMessage.AuthorRoles.User, deserializedPlan.OriginalUserInput);
 
             // Add bot message proposal as prompt context message
-            chatContext.Variables.Set("planFunctions", this._externalInformationSkill.FormattedFunctionsString(deserializedPlan.Plan));
-            var promptRenderer = new BasicPromptTemplateEngine();
-            var proposedPlanBotMessage = await promptRenderer.RenderAsync(
-               this._promptOptions.ProposedPlanBotMessage,
-                chatContext,
-                cancellationToken);
+            chatContext.Variables.Set("planFunctions", this._externalInformationPlugin.FormattedFunctionsString(deserializedPlan.Plan));
+            var promptTemplateFactory = new BasicPromptTemplateFactory();
+            var proposedPlanTemplate = promptTemplateFactory.Create(this._promptOptions.ProposedPlanBotMessage, new PromptTemplateConfig());
+            var proposedPlanBotMessage = await proposedPlanTemplate.RenderAsync(chatContext, cancellationToken);
             promptTemplate.AddAssistantMessage(proposedPlanBotMessage);
             chatHistoryString += "\n" + PromptUtils.FormatChatHistoryMessage(ChatMessage.AuthorRoles.Bot, proposedPlanBotMessage);
 
@@ -453,10 +452,8 @@ public class ChatSkill
             promptTemplate.AddSystemMessage(deserializedPlan.UserIntent);
 
             // Render system supplement to help guide model in using data.
-            var promptSupplement = await promptRenderer.RenderAsync(
-                this._promptOptions.PlanResultsDescription,
-                chatContext,
-                cancellationToken);
+            var promptSupplementTemplate = promptTemplateFactory.Create(this._promptOptions.PlanResultsDescription, new PromptTemplateConfig());
+            var promptSupplement = await promptSupplementTemplate.RenderAsync(chatContext, cancellationToken);
 
             // Calculate remaining token budget and execute plan
             await this.UpdateBotResponseStatusOnClientAsync(chatId, "Executing plan", cancellationToken);
@@ -483,7 +480,7 @@ public class ChatSkill
                 }
                 else
                 {
-                    this._logger.LogWarning("ChatSkill.ProcessPlan token usage unknown. Ensure token management has been implemented correctly.");
+                    this._logger.LogWarning("ChatPlugin.ProcessPlan token usage unknown. Ensure token management has been implemented correctly.");
                 }
             }
             catch (Exception ex)
@@ -562,12 +559,12 @@ public class ChatSkill
 
         // Extract additional details about stepwise planner execution in chat context
         var plannerDetails = new SemanticDependency<PlanExecutionMetadata>(
-                this._externalInformationSkill.StepwiseThoughtProcess?.RawResult ?? planResult,
-                this._externalInformationSkill.StepwiseThoughtProcess
+                this._externalInformationPlugin.StepwiseThoughtProcess?.RawResult ?? planResult,
+                this._externalInformationPlugin.StepwiseThoughtProcess
             );
 
         // If plan is suggested, send back to user for approval before running
-        var proposedPlan = this._externalInformationSkill.ProposedPlan;
+        var proposedPlan = this._externalInformationPlugin.ProposedPlan;
         if (proposedPlan != null)
         {
             // Save a new response to the chat history with the proposed plan content
@@ -583,10 +580,10 @@ public class ChatSkill
         }
 
         // If plan result is to be used as bot response, save the Stepwise result as a new response to the chat history and return.
-        if (this._externalInformationSkill.UseStepwiseResultAsBotResponse(planResult))
+        if (this._externalInformationPlugin.UseStepwiseResultAsBotResponse(planResult))
         {
             var promptDetails = new BotResponsePrompt("", "", userIntent, "", plannerDetails, "", new ChatHistory());
-            return await this.HandleBotResponseAsync(chatId, userId, chatContext, promptDetails, cancellationToken, null, this._externalInformationSkill.StepwiseThoughtProcess!.RawResult);
+            return await this.HandleBotResponseAsync(chatId, userId, chatContext, promptDetails, cancellationToken, null, this._externalInformationPlugin.StepwiseThoughtProcess!.RawResult);
         }
 
         // Query relevant semantic and document memories
@@ -631,11 +628,11 @@ public class ChatSkill
     {
         // Render system instruction components
         await this.UpdateBotResponseStatusOnClientAsync(chatId, "Initializing prompt", cancellationToken);
-        var promptRenderer = new BasicPromptTemplateEngine();
-        return await promptRenderer.RenderAsync(
-            this._promptOptions.SystemPersona,
-            context,
-            cancellationToken);
+
+        var promptTemplateFactory = new BasicPromptTemplateFactory();
+        var template = promptTemplateFactory.Create(this._promptOptions.SystemPersona, new PromptTemplateConfig());
+
+        return await template.RenderAsync(context, cancellationToken);
     }
 
     /// <summary>
@@ -755,8 +752,8 @@ public class ChatSkill
         SKContext planContext = context.Clone();
         planContext.Variables.Set("tokenLimit", tokenLimit.ToString(new NumberFormatInfo()));
         return plan is not null
-            ? await this._externalInformationSkill.ExecutePlanAsync(planContext, plan, cancellationToken)
-            : await this._externalInformationSkill.InvokePlannerAsync(userIntent, planContext, cancellationToken);
+            ? await this._externalInformationPlugin.ExecutePlanAsync(planContext, plan, cancellationToken)
+            : await this._externalInformationPlugin.InvokePlannerAsync(userIntent, planContext, cancellationToken);
     }
 
     /// <summary>
@@ -1031,6 +1028,6 @@ public class ChatSkill
             throw new ArgumentException("Chat session does not exist.");
         }
 
-        this._promptOptions.SystemDescription = chatSession!.SystemDescription;
+        this._promptOptions.SystemDescription = chatSession!.SafeSystemDescription;
     }
 }

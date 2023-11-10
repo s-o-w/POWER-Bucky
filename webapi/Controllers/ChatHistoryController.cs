@@ -12,7 +12,7 @@ using CopilotChat.WebApi.Models.Request;
 using CopilotChat.WebApi.Models.Response;
 using CopilotChat.WebApi.Models.Storage;
 using CopilotChat.WebApi.Options;
-using CopilotChat.WebApi.Skills.Utils;
+using CopilotChat.WebApi.Plugins.Utils;
 using CopilotChat.WebApi.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -218,7 +218,7 @@ public class ChatHistoryController : ControllerBase
         if (await this._sessionRepository.TryFindByIdAsync(chatId.ToString(), callback: v => chat = v))
         {
             chat!.Title = chatParameters.Title ?? chat!.Title;
-            chat!.SystemDescription = chatParameters.SystemDescription ?? chat!.SystemDescription;
+            chat!.SystemDescription = chatParameters.SystemDescription ?? chat!.SafeSystemDescription;
             chat!.MemoryBalance = chatParameters.MemoryBalance ?? chat!.MemoryBalance;
             await this._sessionRepository.UpsertAsync(chat);
             await messageRelayHubContext.Clients.Group(chatId.ToString()).SendAsync(ChatEditedClientCall, chat);
