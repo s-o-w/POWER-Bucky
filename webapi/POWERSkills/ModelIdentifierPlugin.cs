@@ -1,6 +1,5 @@
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Orchestration;
-using Microsoft.SemanticKernel.SkillDefinition;
 using System.ComponentModel;
 using System.Threading.Tasks;
 
@@ -21,11 +20,11 @@ public class ModelIdentifierPlugin
     public async Task<string> RouteRequest(SKContext context)
     {
         // check to see if we called this from AutoCAD and are using the AutoCAD Copilot
-        if (context.Variables.ContainsKey("POWERSkillTarget"))
+        if (context.Variables.TryGetValue("POWERSkillTarget", out string? value))
         {
-            if (context.Variables["POWERSkillTarget"] == "LispForCAD")
+            if (value == "LispForCAD")
             {
-                var cadSkill = this._kernel.Skills.GetFunction("CADPlugin", "LispForAutoCAD");
+                var cadSkill = this._kernel.Functions.GetFunction("CADPlugin", "LispForAutoCAD");
                 await cadSkill.InvokeAsync(context);
                 string toReturn = context.Variables["input"].Trim();
                 return $"CADCP data:{toReturn}";
@@ -36,7 +35,7 @@ public class ModelIdentifierPlugin
         string request = context.Variables["input"];
 
         // Retrieve the intent from the user request
-        var targetModel = this._kernel.Skills.GetFunction("ModelIdentifierPlugin", "GetIntendedModel");
+        var targetModel = this._kernel.Functions.GetFunction("ModelIdentifierPlugin", "GetIntendedModel");
         await targetModel.InvokeAsync(context);
         string intent = context.Variables["input"].Trim();
         string data = string.Empty;

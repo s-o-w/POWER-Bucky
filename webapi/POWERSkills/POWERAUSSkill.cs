@@ -1,4 +1,3 @@
-using Microsoft.SemanticKernel.SkillDefinition;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -7,9 +6,7 @@ using System.Text;
 using Azure;
 using Azure.Search.Documents;
 using Azure.AI.OpenAI;
-using System.Collections.Generic;
 using Azure.Search.Documents.Indexes;
-using Azure.Search.Documents.Indexes.Models;
 using Azure.Search.Documents.Models;
 using Microsoft.SemanticKernel;
 using System.ComponentModel;
@@ -18,10 +15,10 @@ namespace POWEREngineers.Bucky.Skills.POWEREngPlugins;
 
 public class POWERAUSSkill
 {
-    IKernel _kernel;
+    private IKernel _kernel;
     public POWERAUSSkill(IKernel kernel)
     {
-        _kernel = kernel;
+        this._kernel = kernel;
     }
 
     /// <summary>
@@ -30,11 +27,11 @@ public class POWERAUSSkill
     /// <param name="query">Query to match.</param>
     /// <param name="context">The SkContext.</param>
     [SKFunction, Description("Call the POWER AUS Vector index to get information per the users context")]
-    [SKParameter("query", "Query to match.")]
+    //[SKParameter("query", "Query to match.")]
     public async Task<string> QueryAUSIndexAsync(string query)
     {
         //return String.Empty;
-        StringBuilder ausResult = new StringBuilder();
+        StringBuilder ausResult = new();
 
         // Initialize OpenAI client  
         var credential = new AzureKeyCredential("cafc0262e9d046739da7784b6e91f6c7");
@@ -87,7 +84,7 @@ public class POWERAUSSkill
     /// <param name="query">Query to match.</param>
     /// <param name="context">The SkContext.</param>
     [SKFunction, Description("Call the POWER AUS ML Model to get information per the users context")]
-    [SKParameter("query", "Query to match.")]
+    //[SKParameter("query", "Query to match.")]
     public async Task<string> QueryAUSModelAsync(string query)
     {
         string ausResult = string.Empty;

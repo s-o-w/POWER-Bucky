@@ -1,8 +1,4 @@
-using Microsoft.SemanticKernel.SkillDefinition;
 using System.Threading.Tasks;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System;
 using Microsoft.SemanticKernel;
 using System.ComponentModel;
 
@@ -22,7 +18,7 @@ public class CADCopilotSkill
     /// <param name="query">Query to match.</param>
     /// <param name="context">The SkContext.</param>
     [SKFunction, Description("Use GPT-4 to generate Lisp code to help drafters create content in drawings")]
-    [SKParameter("query", "Query to match.")]
+    //[SKParameter("query", "Query to match.")]
     public async Task<string> GenerateResponse(string query)
     {
         return string.Empty;

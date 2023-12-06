@@ -1,16 +1,7 @@
-using Microsoft.SemanticKernel.SkillDefinition;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System;
-using System.Text;
-using Azure;
-using Azure.Search.Documents;
-using Azure.AI.OpenAI;
-using System.Collections.Generic;
-using Azure.Search.Documents.Indexes;
-using Azure.Search.Documents.Indexes.Models;
-using Azure.Search.Documents.Models;
 using Microsoft.SemanticKernel;
 using System.ComponentModel;
 
@@ -30,7 +21,7 @@ public class POWERKMPSkill
     /// <param name="query">Query to match.</param>
     /// <param name="context">The SkContext.</param>
     [SKFunction, Description("Call the POWER Substation KMP ML Model to get information per the users context")]
-    [SKParameter("query", "Query to match.")]
+    //[SKParameter("query", "Query to match.")]
     public async Task<string> QueryKMPModelAsync(string query)
     {
         string kmpResult = string.Empty;

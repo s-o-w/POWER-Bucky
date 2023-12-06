@@ -1,4 +1,3 @@
-using Microsoft.SemanticKernel.SkillDefinition;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -22,7 +21,7 @@ public class POWERQMSSkill
     /// <param name="query">Query to match.</param>
     /// <param name="context">The SkContext.</param>
     [SKFunction, Description("Call the POWER QMS Data prompt-flow endpoint to get information")]
-    [SKParameter("query", "Query to match.")]
+    //[SKParameter("query", "Query to match.")]
     public async Task<string> QueryQMSIndexAsync(string query)
     {
         //short-circuit this for now till the backend gets fixed
