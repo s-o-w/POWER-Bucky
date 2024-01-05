@@ -70,13 +70,13 @@ param deployCosmosDB bool = true
   'AzureCognitiveSearch'
   'Qdrant'
 ])
-param memoryStore string = 'AzureCognitiveSearch'
+param memoryStore string = 'Qdrant'
 
 @description('Whether to deploy Azure Speech Services to enable input by voice')
 param deploySpeechServices bool = true
 
 @description('Whether to deploy the web searcher plugin, which requires a Bing resource')
-param deployWebSearcherPlugin bool = false
+param deployWebSearcherPlugin bool = true
 
 @description('Whether to deploy pre-built binary packages to the cloud')
 param deployPackages bool = true

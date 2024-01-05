@@ -61,15 +61,15 @@ param(
     [ValidateSet("AzureCognitiveSearch", "Qdrant")]
     [string]
     # What method to use to persist embeddings
-    $MemoryStore = "AzureCognitiveSearch",
+    $MemoryStore = "Qdrant",
 
     [switch]
-    # Don't deploy Cosmos DB for chat storage - Use volatile memory instead
-    $NoCosmosDb,
+    # Deploy Cosmos DB for chat storage - Use volatile memory instead
+    $CosmosDb,
 
     [switch]
-    # Don't deploy Speech Services to enable speech as chat input
-    $NoSpeechServices,
+    # Deploy Speech Services to enable speech as chat input
+    $SpeechServices,
 
     [switch]
     # Deploy the web searcher plugin
