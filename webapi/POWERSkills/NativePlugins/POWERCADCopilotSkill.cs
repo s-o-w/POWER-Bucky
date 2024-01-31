@@ -6,11 +6,13 @@ namespace POWEREngineers.Bucky.Skills.POWEREngPlugins;
 
 public class CADCopilotSkill
 {
-    IKernel _kernel;
+    private IKernel _kernel;
     public CADCopilotSkill(IKernel kernel)
     {
-        _kernel = kernel;
+        this._kernel = kernel;
     }
+
+    public CADCopilotSkill() { }
 
     /// <summary>
     /// Query the QMS Memory collection for documents that match the query.

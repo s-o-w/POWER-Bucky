@@ -16,10 +16,11 @@ public class ModelIdentifierPlugin
         this._kernel = kernel;
     }
 
+    public ModelIdentifierPlugin() { }
+
     [SKFunction, Description("Routes the request to the appropriate data retrieval function.")]
     public async Task<string> RouteRequest(SKContext context)
     {
-        return string.Empty;
         // check to see if we called this from AutoCAD and are using the AutoCAD Copilot
         if (context.Variables.TryGetValue("POWERSkillTarget", out string? value))
         {

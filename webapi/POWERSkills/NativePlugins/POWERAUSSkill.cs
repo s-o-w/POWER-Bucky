@@ -21,6 +21,8 @@ public class POWERAUSSkill
         this._kernel = kernel;
     }
 
+    public POWERAUSSkill() { }
+
     /// <summary>
     /// Query the AUS search index for documents that match the query.
     /// </summary>

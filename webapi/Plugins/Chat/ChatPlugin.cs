@@ -544,11 +544,10 @@ public class ChatPlugin
             () => this.GetUserIntentAsync(chatContext, cancellationToken), nameof(GetUserIntentAsync));
         promptTemplate.AddSystemMessage(userIntent);
 
-        /*      Commented out to avoid this lookup while configuring CI/CD
-                //POWER model data, use the intent to see if data is required from our POWER model(s), pull that data in if so
-                var _modelIdPlugin = new POWEREngineers.Bucky.Skills.POWEREngPlugins.ModelIdentifierPlugin(this._kernel);
-                string peModelData = await _modelIdPlugin.RouteRequest(chatContext); 
-        */
+        //Commented out to avoid this lookup while configuring CI/CD
+        //POWER model data, use the intent to see if data is required from our POWER model(s), pull that data in if so
+        var _modelIdPlugin = new POWEREngineers.Bucky.Skills.POWEREngPlugins.ModelIdentifierPlugin(this._kernel);
+        string peModelData = await _modelIdPlugin.RouteRequest(chatContext);
 
         // Calculate the remaining token budget.
         await this.UpdateBotResponseStatusOnClientAsync(chatId, "Calculating remaining token budget", cancellationToken);
