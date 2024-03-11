@@ -15,8 +15,8 @@ namespace POWEREngineers.Bucky.Skills.POWEREngPlugins;
 
 public class POWERAUSSkill
 {
-    private IKernel _kernel;
-    public POWERAUSSkill(IKernel kernel)
+    private readonly Kernel _kernel;
+    public POWERAUSSkill(Kernel kernel)
     {
         this._kernel = kernel;
     }
@@ -28,7 +28,7 @@ public class POWERAUSSkill
     /// </summary>
     /// <param name="query">Query to match.</param>
     /// <param name="context">The SkContext.</param>
-    [SKFunction, Description("Call the POWER AUS Vector index to get information per the users context")]
+    [KernelFunction, Description("Call the POWER AUS Vector index to get information per the users context")]
     //[SKParameter("query", "Query to match.")]
     public async Task<string> QueryAUSIndexAsync(string query)
     {
@@ -55,11 +55,6 @@ public class POWERAUSSkill
                 //vector = vector,
                 Size = 10,
                 QueryType = SearchQueryType.Semantic,
-                QueryLanguage = QueryLanguage.EnUs,
-                SemanticConfigurationName = "aus-semantic-config",
-                QueryCaption = QueryCaptionType.Extractive,
-                QueryAnswer = QueryAnswerType.Extractive,
-                QueryCaptionHighlightEnabled = true,
                 Select = { "id", "Description", "Text", "ExternalSourceName" },
             };
 
@@ -85,7 +80,7 @@ public class POWERAUSSkill
     /// </summary>
     /// <param name="query">Query to match.</param>
     /// <param name="context">The SkContext.</param>
-    [SKFunction, Description("Call the POWER AUS ML Model to get information per the users context")]
+    [KernelFunction, Description("Call the POWER AUS ML Model to get information per the users context")]
     //[SKParameter("query", "Query to match.")]
     public async Task<string> QueryAUSModelAsync(string query)
     {

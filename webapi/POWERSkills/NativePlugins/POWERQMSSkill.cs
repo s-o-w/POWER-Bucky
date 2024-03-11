@@ -9,8 +9,8 @@ namespace POWEREngineers.Bucky.Skills.POWEREngPlugins;
 
 public class POWERQMSSkill
 {
-    private IKernel _kernel;
-    public POWERQMSSkill(IKernel kernel)
+    private Kernel _kernel;
+    public POWERQMSSkill(Kernel kernel)
     {
         this._kernel = kernel;
     }
@@ -22,7 +22,7 @@ public class POWERQMSSkill
     /// </summary>
     /// <param name="query">Query to match.</param>
     /// <param name="context">The SkContext.</param>
-    [SKFunction, Description("Call the POWER QMS Data prompt-flow endpoint to get information")]
+    [KernelFunction, Description("Call the POWER QMS Data prompt-flow endpoint to get information")]
     //[SKParameter("query", "Query to match.")]
     public async Task<string> QueryQMSIndexAsync(string query)
     {

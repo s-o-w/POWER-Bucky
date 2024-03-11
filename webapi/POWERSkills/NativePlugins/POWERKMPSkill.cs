@@ -9,8 +9,8 @@ namespace POWEREngineers.Bucky.Skills.POWEREngPlugins;
 
 public class POWERKMPSkill
 {
-    private IKernel _kernel;
-    public POWERKMPSkill(IKernel kernel)
+    private Kernel _kernel;
+    public POWERKMPSkill(Kernel kernel)
     {
         this._kernel = kernel;
     }
@@ -22,7 +22,7 @@ public class POWERKMPSkill
     /// </summary>
     /// <param name="query">Query to match.</param>
     /// <param name="context">The SkContext.</param>
-    [SKFunction, Description("Call the POWER Substation KMP ML Model to get information per the users context")]
+    [KernelFunction, Description("Call the POWER Substation KMP ML Model to get information per the users context")]
     //[SKParameter("query", "Query to match.")]
     public async Task<string> QueryKMPModelAsync(string query)
     {

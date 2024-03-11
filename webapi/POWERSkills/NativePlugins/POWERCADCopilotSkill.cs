@@ -6,8 +6,8 @@ namespace POWEREngineers.Bucky.Skills.POWEREngPlugins;
 
 public class CADCopilotSkill
 {
-    private IKernel _kernel;
-    public CADCopilotSkill(IKernel kernel)
+    private Kernel _kernel;
+    public CADCopilotSkill(Kernel kernel)
     {
         this._kernel = kernel;
     }
@@ -19,7 +19,7 @@ public class CADCopilotSkill
     /// </summary>
     /// <param name="query">Query to match.</param>
     /// <param name="context">The SkContext.</param>
-    [SKFunction, Description("Use GPT-4 to generate Lisp code to help drafters create content in drawings")]
+    [KernelFunction, Description("Use GPT-4 to generate Lisp code to help drafters create content in drawings")]
     //[SKParameter("query", "Query to match.")]
     public async Task<string> GenerateResponse(string query)
     {
