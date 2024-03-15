@@ -2,17 +2,17 @@ using System.Threading.Tasks;
 using Microsoft.SemanticKernel;
 using System.ComponentModel;
 
-namespace POWEREngineers.Bucky.Skills.POWEREngPlugins;
+namespace POWEREngineers.Bucky.POWEREngPlugins;
 
-public class CADCopilotSkill
+public class CADCopilotPlugin
 {
     private Kernel _kernel;
-    public CADCopilotSkill(Kernel kernel)
+    public CADCopilotPlugin(Kernel kernel)
     {
         this._kernel = kernel;
     }
 
-    public CADCopilotSkill() { }
+    public CADCopilotPlugin() { }
 
     /// <summary>
     /// Query the QMS Memory collection for documents that match the query.

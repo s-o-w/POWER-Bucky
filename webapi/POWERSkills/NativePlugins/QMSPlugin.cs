@@ -5,17 +5,17 @@ using System;
 using Microsoft.SemanticKernel;
 using System.ComponentModel;
 
-namespace POWEREngineers.Bucky.Skills.POWEREngPlugins;
+namespace POWEREngineers.Bucky.POWEREngPlugins;
 
-public class POWERQMSSkill
+public class QMSPlugin
 {
     private Kernel _kernel;
-    public POWERQMSSkill(Kernel kernel)
+    public QMSPlugin(Kernel kernel)
     {
         this._kernel = kernel;
     }
 
-    public POWERQMSSkill() { }
+    public QMSPlugin() { }
 
     /// <summary>
     /// Query the QMS Memory collection for documents that match the query.

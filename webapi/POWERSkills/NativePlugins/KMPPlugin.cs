@@ -5,17 +5,17 @@ using System;
 using Microsoft.SemanticKernel;
 using System.ComponentModel;
 
-namespace POWEREngineers.Bucky.Skills.POWEREngPlugins;
+namespace POWEREngineers.Bucky.POWEREngPlugins;
 
-public class POWERKMPSkill
+public class KMPPlugin
 {
     private Kernel _kernel;
-    public POWERKMPSkill(Kernel kernel)
+    public KMPPlugin(Kernel kernel)
     {
         this._kernel = kernel;
     }
 
-    public POWERKMPSkill() { }
+    public KMPPlugin() { }
 
     /// <summary>
     /// Query the AUS search index for documents that match the query.

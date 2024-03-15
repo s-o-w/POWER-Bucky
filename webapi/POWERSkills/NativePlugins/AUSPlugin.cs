@@ -11,17 +11,17 @@ using Azure.Search.Documents.Models;
 using Microsoft.SemanticKernel;
 using System.ComponentModel;
 
-namespace POWEREngineers.Bucky.Skills.POWEREngPlugins;
+namespace POWEREngineers.Bucky.POWEREngPlugins;
 
-public class POWERAUSSkill
+public class AUSPlugin
 {
     private readonly Kernel _kernel;
-    public POWERAUSSkill(Kernel kernel)
+    public AUSPlugin(Kernel kernel)
     {
         this._kernel = kernel;
     }
 
-    public POWERAUSSkill() { }
+    public AUSPlugin() { }
 
     /// <summary>
     /// Query the AUS search index for documents that match the query.

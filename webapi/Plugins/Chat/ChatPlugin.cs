@@ -262,8 +262,12 @@ public class ChatPlugin
 
         //Commented out to avoid this lookup while configuring CI/CD
         //POWER model data, use the intent to see if data is required from our POWER model(s), pull that data in if so
-        //var _modelIdPlugin = new POWEREngineers.Bucky.Skills.POWEREngPlugins.ModelIdentifierPlugin(this._kernel);
-        //string peModelData = await _modelIdPlugin.RouteRequest(chatContext);
+        var _modelIdPlugin = new POWEREngineers.Bucky.Skills.POWEREngPlugins.ModelRouterPlugin(this._kernel);
+        string peModelData = await _modelIdPlugin.RouteRequest(chatContext);
+        if (!string.IsNullOrEmpty(peModelData))
+        {
+            metaPrompt.AddUserMessage(peModelData);
+        }
 
         // Calculate max amount of tokens to use for memories
         int maxRequestTokenBudget = this.GetMaxRequestTokenBudget();
